@@ -12,9 +12,9 @@
 #pragma once
 
 #include <hpx/config.hpp>
-#include <hpx/execution/algorithms/then.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
 #include <hpx/modules/datastructures.hpp>
+#include <hpx/modules/execution.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/futures.hpp>
 
 #include <type_traits>

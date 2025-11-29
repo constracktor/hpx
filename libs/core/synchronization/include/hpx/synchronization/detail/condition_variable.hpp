@@ -13,8 +13,8 @@
 #include <hpx/modules/datastructures.hpp>
 #include <hpx/modules/errors.hpp>
 #include <hpx/modules/thread_support.hpp>
+#include <hpx/modules/timing.hpp>
 #include <hpx/synchronization/spinlock.hpp>
-#include <hpx/timing/steady_clock.hpp>
 
 #include <cstddef>
 #include <mutex>
@@ -23,7 +23,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 namespace hpx::lcos::local::detail {
 
-    class condition_variable
+    HPX_CXX_EXPORT class condition_variable
     {
     private:
         using mutex_type = hpx::spinlock;

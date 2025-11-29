@@ -10,21 +10,17 @@
 #include <hpx/config.hpp>
 
 #if defined(HPX_HAVE_STDEXEC)
-#include <hpx/execution_base/stdexec_forward.hpp>
+#include <hpx/modules/execution_base.hpp>
 #else
 
 #include <hpx/assert.hpp>
 #include <hpx/execution/algorithms/detail/inject_scheduler.hpp>
 #include <hpx/execution/algorithms/detail/partial_algorithm.hpp>
 #include <hpx/execution/algorithms/run_loop.hpp>
-#include <hpx/execution_base/completion_scheduler.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/get_env.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
 #include <hpx/modules/concepts.hpp>
 #include <hpx/modules/datastructures.hpp>
 #include <hpx/modules/errors.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/functional.hpp>
 #include <hpx/modules/tag_invoke.hpp>
 #include <hpx/modules/type_support.hpp>
@@ -37,7 +33,7 @@ namespace hpx::execution::experimental {
 
     namespace detail {
 
-        template <typename PredecessorSender, typename F,
+        HPX_CXX_EXPORT template <typename PredecessorSender, typename F,
             typename Scheduler = no_scheduler>
         struct let_error_sender
         {
@@ -393,7 +389,7 @@ namespace hpx::execution::experimental {
     // let_error and let_stopped are similar to let_value, but where let_value
     // works with values sent by the input sender, let_error works with errors,
     // and let_stopped is invoked when the "stopped" signal is sent.
-    inline constexpr struct let_error_t final
+    HPX_CXX_EXPORT inline constexpr struct let_error_t final
       : hpx::functional::detail::tag_priority<let_error_t>
     {
     private:

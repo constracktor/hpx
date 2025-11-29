@@ -11,16 +11,16 @@
 #if !defined(HPX_COMPUTE_DEVICE_CODE)
 
 #include <hpx/actions_base/component_action.hpp>
-#include <hpx/async_base/launch_policy.hpp>
 #include <hpx/components_base/server/component_base.hpp>
-#include <hpx/lcos_local/and_gate.hpp>
+#include <hpx/modules/async_base.hpp>
 #include <hpx/modules/datastructures.hpp>
 #include <hpx/modules/errors.hpp>
 #include <hpx/modules/functional.hpp>
+#include <hpx/modules/lcos_local.hpp>
 #include <hpx/modules/lock_registration.hpp>
 #include <hpx/modules/logging.hpp>
+#include <hpx/modules/synchronization.hpp>
 #include <hpx/modules/type_support.hpp>
-#include <hpx/synchronization/spinlock.hpp>
 
 #include <cstddef>
 #include <mutex>

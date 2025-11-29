@@ -9,19 +9,15 @@
 #pragma once
 
 #include <hpx/config.hpp>
-#include <hpx/io_service/io_service_pool_fwd.hpp>
 #include <hpx/modules/errors.hpp>
-#include <hpx/resource_partitioner/detail/partitioner.hpp>
-#include <hpx/runtime_configuration/runtime_configuration.hpp>
-#include <hpx/thread_pools/scheduled_thread_pool.hpp>
-#include <hpx/threading_base/scheduler_mode.hpp>
-#include <hpx/threading_base/scheduler_state.hpp>
-#include <hpx/threading_base/thread_init_data.hpp>
-#include <hpx/threading_base/thread_num_tss.hpp>
-#include <hpx/threading_base/thread_pool_base.hpp>
+#include <hpx/modules/io_service.hpp>
+#include <hpx/modules/resource_partitioner.hpp>
+#include <hpx/modules/runtime_configuration.hpp>
+#include <hpx/modules/thread_pools.hpp>
+#include <hpx/modules/threading_base.hpp>
+#include <hpx/modules/timing.hpp>
+#include <hpx/modules/topology.hpp>
 #include <hpx/threadmanager/threadmanager_fwd.hpp>
-#include <hpx/timing/steady_clock.hpp>
-#include <hpx/topology/cpu_mask.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -41,7 +37,7 @@ namespace hpx::threads {
     ///////////////////////////////////////////////////////////////////////////
     /// The \a thread-manager class is the central instance of management for
     /// all (non-depleted) threads
-    class threadmanager
+    HPX_CXX_EXPORT class threadmanager
     {
     private:
         // we use a simple mutex to protect the data members of the

@@ -27,6 +27,7 @@ include(HPX_AddModule)
 add_hpx_module(
   core resource_partitioner
   GLOBAL_HEADER_GEN ON
+  GLOBAL_HEADER_MODULE_GEN ON
   SOURCES ${resource_partitioner_sources}
   HEADERS ${resource_partitioner_headers}
   COMPAT_HEADERS ${resource_partitioner_compat_headers}
@@ -43,6 +44,7 @@ add_hpx_module(
     hpx_synchronization
     hpx_threading_base
     hpx_thread_pools
+    hpx_topology
     hpx_type_support
     hpx_util
   CMAKE_SUBDIRS examples tests

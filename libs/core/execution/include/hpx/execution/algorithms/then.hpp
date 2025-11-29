@@ -9,17 +9,14 @@
 
 #include <hpx/config.hpp>
 #if defined(HPX_HAVE_STDEXEC)
-#include <hpx/execution_base/stdexec_forward.hpp>
+#include <hpx/modules/execution_base.hpp>
 #else
 
 #include <hpx/execution/algorithms/detail/partial_algorithm.hpp>
-#include <hpx/execution_base/completion_scheduler.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
-#include <hpx/futures/future.hpp>
 #include <hpx/modules/concepts.hpp>
 #include <hpx/modules/errors.hpp>
+#include <hpx/modules/execution_base.hpp>
+#include <hpx/modules/futures.hpp>
 #include <hpx/modules/tag_invoke.hpp>
 #include <hpx/modules/thread_support.hpp>
 #include <hpx/modules/type_support.hpp>
@@ -36,7 +33,7 @@ namespace hpx::execution::experimental {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
-        template <typename Receiver, typename F>
+        HPX_CXX_EXPORT template <typename Receiver, typename F>
         struct then_receiver
         {
             HPX_NO_UNIQUE_ADDRESS std::decay_t<Receiver> receiver;
@@ -102,7 +99,7 @@ namespace hpx::execution::experimental {
 #pragma GCC diagnostic pop
 #endif
 
-        template <typename Sender, typename F>
+        HPX_CXX_EXPORT template <typename Sender, typename F>
         struct then_sender
         {
             using is_sender = void;
@@ -201,7 +198,7 @@ namespace hpx::execution::experimental {
     //
     // execution::then is guaranteed to not begin executing the function before
     // the returned sender is started.
-    inline constexpr struct then_t final
+    HPX_CXX_EXPORT inline constexpr struct then_t final
       : hpx::functional::detail::tag_priority<then_t>
     {
     private:

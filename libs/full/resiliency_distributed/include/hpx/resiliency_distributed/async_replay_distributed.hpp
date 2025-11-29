@@ -9,12 +9,11 @@
 #include <hpx/config.hpp>
 #if !defined(HPX_COMPUTE_DEVICE_CODE)
 
-#include <hpx/resiliency/resiliency_cpos.hpp>
-#include <hpx/resiliency/util.hpp>
+#include <hpx/modules/resiliency.hpp>
 
 #include <hpx/assert.hpp>
 #include <hpx/async_distributed/async.hpp>
-#include <hpx/futures/future.hpp>
+#include <hpx/modules/futures.hpp>
 #include <hpx/modules/type_support.hpp>
 
 #include <cstddef>

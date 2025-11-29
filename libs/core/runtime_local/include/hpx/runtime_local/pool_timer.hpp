@@ -9,7 +9,7 @@
 
 #include <hpx/config.hpp>
 #include <hpx/modules/functional.hpp>
-#include <hpx/timing/steady_clock.hpp>
+#include <hpx/modules/timing.hpp>
 
 #include <memory>
 #include <string>
@@ -23,7 +23,7 @@ namespace hpx::util {
         class pool_timer;
     }    // namespace detail
 
-    class HPX_CORE_EXPORT pool_timer
+    HPX_CXX_EXPORT class HPX_CORE_EXPORT pool_timer
     {
     public:
         pool_timer();

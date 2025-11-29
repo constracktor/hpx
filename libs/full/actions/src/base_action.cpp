@@ -9,10 +9,12 @@
 #if defined(HPX_HAVE_NETWORKING)
 #include <hpx/actions/transfer_action.hpp>
 #include <hpx/modules/datastructures.hpp>
+#include <hpx/modules/runtime_local.hpp>
 #include <hpx/modules/serialization.hpp>
-#include <hpx/runtime_local/get_locality_id.hpp>
 
 #include <cstdint>
+
+#include <hpx/config/warnings_prefix.hpp>
 
 ///////////////////////////////////////////////////////////////////////////////
 namespace hpx::actions::detail {
@@ -119,7 +121,7 @@ namespace hpx::actions {
     ///////////////////////////////////////////////////////////////////////////
     std::uint32_t base_action_data::get_locality_id()
     {
-        error_code ec(throwmode::lightweight);    // ignore any errors
+        hpx::error_code ec(hpx::throwmode::lightweight);    // ignore any errors
         return hpx::get_locality_id(ec);
     }
 

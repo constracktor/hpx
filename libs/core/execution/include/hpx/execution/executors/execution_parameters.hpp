@@ -8,19 +8,17 @@
 #pragma once
 
 #include <hpx/config.hpp>
-#include <hpx/async_base/scheduling_properties.hpp>
-#include <hpx/async_base/traits/is_launch_policy.hpp>
 #include <hpx/execution/detail/execution_parameter_callbacks.hpp>
-#include <hpx/execution_base/traits/is_executor.hpp>
-#include <hpx/execution_base/traits/is_executor_parameters.hpp>
+#include <hpx/execution/detail/future_exec.hpp>
+#include <hpx/execution/executors/execution.hpp>
+#include <hpx/execution/executors/execution_parameters_fwd.hpp>
+#include <hpx/modules/async_base.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/preprocessor.hpp>
 #include <hpx/modules/serialization.hpp>
 #include <hpx/modules/tag_invoke.hpp>
+#include <hpx/modules/timing.hpp>
 #include <hpx/modules/type_support.hpp>
-#include <hpx/timing/steady_clock.hpp>
-
-#include <hpx/execution/executors/execution.hpp>
-#include <hpx/execution/executors/execution_parameters_fwd.hpp>
 
 #include <cstddef>
 #include <functional>
@@ -943,20 +941,20 @@ namespace hpx::execution::experimental {
 
     ///////////////////////////////////////////////////////////////////////////
     // specialize trait for the type-combiner
-    template <typename... Parameters>
+    HPX_CXX_EXPORT template <typename... Parameters>
     struct is_executor_parameters<detail::executor_parameters<Parameters...>>
       : hpx::util::all_of<hpx::traits::is_executor_parameters<Parameters>...>
     {
     };
 
     ///////////////////////////////////////////////////////////////////////////
-    template <typename... Params>
+    HPX_CXX_EXPORT template <typename... Params>
     struct executor_parameters_join
     {
         using type = detail::executor_parameters<std::decay_t<Params>...>;
     };
 
-    template <typename... Params>
+    HPX_CXX_EXPORT template <typename... Params>
     constexpr HPX_FORCEINLINE typename executor_parameters_join<Params...>::type
     join_executor_parameters(Params&&... params)
     {
@@ -966,13 +964,13 @@ namespace hpx::execution::experimental {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    template <typename Param>
+    HPX_CXX_EXPORT template <typename Param>
     struct executor_parameters_join<Param>
     {
         using type = Param;
     };
 
-    template <typename Param>
+    HPX_CXX_EXPORT template <typename Param>
     constexpr HPX_FORCEINLINE Param&& join_executor_parameters(
         Param&& param) noexcept
     {

@@ -32,6 +32,7 @@ include(HPX_AddModule)
 add_hpx_module(
   core mpi_base
   GLOBAL_HEADER_GEN ON
+  GLOBAL_HEADER_MODULE_GEN ON
   SOURCES ${mpi_base_sources}
   HEADERS ${mpi_base_headers}
   COMPAT_HEADERS ${mpi_base_compat_headers}
@@ -42,6 +43,7 @@ add_hpx_module(
     hpx_logging
     hpx_runtime_configuration
     hpx_string_util
+    hpx_synchronization
     hpx_util
   DEPENDENCIES ${additional_dependencies}
   CMAKE_SUBDIRS examples tests

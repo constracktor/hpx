@@ -9,29 +9,25 @@
 
 #include <hpx/config.hpp>
 #if defined(HPX_HAVE_STDEXEC)
-#include <hpx/execution_base/stdexec_forward.hpp>
+#include <hpx/modules/execution_base.hpp>
 #endif
 
 #include <hpx/assert.hpp>
-#include <hpx/execution/algorithms/bulk.hpp>
-#include <hpx/execution/executors/execution_parameters.hpp>
-#include <hpx/execution_base/completion_scheduler.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
 #include <hpx/executors/thread_pool_scheduler.hpp>
 #include <hpx/modules/concepts.hpp>
 #include <hpx/modules/concurrency.hpp>
 #include <hpx/modules/coroutines.hpp>
 #include <hpx/modules/datastructures.hpp>
 #include <hpx/modules/errors.hpp>
+#include <hpx/modules/execution.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/functional.hpp>
 #include <hpx/modules/iterator_support.hpp>
+#include <hpx/modules/resource_partitioner.hpp>
 #include <hpx/modules/tag_invoke.hpp>
+#include <hpx/modules/threading_base.hpp>
+#include <hpx/modules/topology.hpp>
 #include <hpx/modules/type_support.hpp>
-#include <hpx/resource_partitioner/detail/partitioner.hpp>
-#include <hpx/threading_base/annotated_function.hpp>
-#include <hpx/topology/cpu_mask.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -109,10 +105,10 @@ namespace hpx::execution::experimental::detail {
         return mask;
     }
 
-    template <typename OperationState>
+    HPX_CXX_EXPORT template <typename OperationState>
     struct task_function;
 
-    template <typename OperationState>
+    HPX_CXX_EXPORT template <typename OperationState>
     struct set_value_loop_visitor
     {
         OperationState* const op_state;
@@ -211,7 +207,7 @@ namespace hpx::execution::experimental::detail {
         }
     };
 
-    template <typename OperationState>
+    HPX_CXX_EXPORT template <typename OperationState>
     struct set_value_end_loop_visitor
     {
         OperationState* const op_state;
@@ -241,7 +237,7 @@ namespace hpx::execution::experimental::detail {
     };
 
     // This struct encapsulates the work done by one worker thread.
-    template <typename OperationState>
+    HPX_CXX_EXPORT template <typename OperationState>
     struct task_function
     {
         OperationState* const op_state;
@@ -329,7 +325,8 @@ namespace hpx::execution::experimental::detail {
     };
 
     ///////////////////////////////////////////////////////////////////////
-    template <typename OperationState, typename F, typename Shape>
+    HPX_CXX_EXPORT template <typename OperationState, typename F,
+        typename Shape>
     struct bulk_receiver
     {
 #if defined(HPX_HAVE_STDEXEC)
@@ -615,7 +612,8 @@ namespace hpx::execution::experimental::detail {
     // in this file is not chosen) it will be reused as one of the worker
     // threads.
     //
-    template <typename Policy, typename Sender, typename Shape, typename F>
+    HPX_CXX_EXPORT template <typename Policy, typename Sender, typename Shape,
+        typename F>
     class thread_pool_bulk_sender
     {
     private:
@@ -846,7 +844,8 @@ namespace hpx::execution::experimental::detail {
 namespace hpx::execution::experimental {
 
     // clang-format off
-    template <typename Policy, typename Sender, typename Shape, typename F,
+    HPX_CXX_EXPORT template <typename Policy, typename Sender, typename Shape,
+        typename F,
         HPX_CONCEPT_REQUIRES_(
             !std::is_integral_v<Shape>
         )>
@@ -870,7 +869,8 @@ namespace hpx::execution::experimental {
     }
 
     // clang-format off
-    template <typename Policy, typename Sender, typename Count, typename F,
+    HPX_CXX_EXPORT template <typename Policy, typename Sender, typename Count,
+        typename F,
         HPX_CONCEPT_REQUIRES_(
             std::is_integral_v<Count>
         )>

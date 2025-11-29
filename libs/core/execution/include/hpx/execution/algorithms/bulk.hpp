@@ -10,18 +10,15 @@
 #include <hpx/config.hpp>
 
 #if defined(HPX_HAVE_STDEXEC)
-#include <hpx/execution_base/stdexec_forward.hpp>
+#include <hpx/modules/execution_base.hpp>
 #endif
 
 #include <hpx/execution/algorithms/detail/partial_algorithm.hpp>
 #include <hpx/execution/algorithms/then.hpp>
-#include <hpx/execution_base/completion_scheduler.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
 #include <hpx/modules/concepts.hpp>
 #include <hpx/modules/datastructures.hpp>
 #include <hpx/modules/errors.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/iterator_support.hpp>
 #include <hpx/modules/tag_invoke.hpp>
 #include <hpx/modules/type_support.hpp>
@@ -36,7 +33,7 @@ namespace hpx::execution::experimental {
     ///////////////////////////////////////////////////////////////////////////
     namespace detail {
 
-        template <typename Sender, typename Shape, typename F>
+        HPX_CXX_EXPORT template <typename Sender, typename Shape, typename F>
         struct bulk_sender
         {
             HPX_NO_UNIQUE_ADDRESS std::decay_t<Sender> sender;
@@ -236,7 +233,7 @@ namespace hpx::execution::experimental {
     // additional operations such as let_value to deliver dynamic shape
     // information to the bulk operation.
     //
-    inline constexpr struct bulk_t final
+    HPX_CXX_EXPORT inline constexpr struct bulk_t final
       : hpx::functional::detail::tag_priority<bulk_t>
     {
     private:

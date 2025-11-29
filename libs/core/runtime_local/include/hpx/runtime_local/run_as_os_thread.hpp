@@ -8,7 +8,7 @@
 
 #include <hpx/config.hpp>
 #include <hpx/assert.hpp>
-#include <hpx/execution/executors/execution.hpp>
+#include <hpx/modules/execution.hpp>
 #include <hpx/modules/tag_invoke.hpp>
 #include <hpx/runtime_local/service_executors.hpp>
 
@@ -18,7 +18,7 @@
 namespace hpx {
 
     ///////////////////////////////////////////////////////////////////////////
-    template <typename F, typename... Ts>
+    HPX_CXX_EXPORT template <typename F, typename... Ts>
     hpx::future<util::invoke_result_t<F, Ts...>> run_as_os_thread(
         F&& f, Ts&&... vs)
     {

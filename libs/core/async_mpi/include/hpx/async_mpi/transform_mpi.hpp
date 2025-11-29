@@ -1,4 +1,4 @@
-//  Copyright (c) 2007-2022 Hartmut Kaiser
+//  Copyright (c) 2007-2025 Hartmut Kaiser
 //  Copyright (c) 2021 Giannis Gonidelis
 //
 //  SPDX-License-Identifier: BSL-1.0
@@ -11,21 +11,20 @@
 
 #include <hpx/config.hpp>
 #include <hpx/async_mpi/mpi_future.hpp>
-#include <hpx/execution/algorithms/detail/partial_algorithm.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
 #include <hpx/modules/concepts.hpp>
 #include <hpx/modules/datastructures.hpp>
+#include <hpx/modules/execution.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/functional.hpp>
+#include <hpx/modules/mpi_base.hpp>
 #include <hpx/modules/tag_invoke.hpp>
-#include <hpx/mpi_base/mpi.hpp>
 
 #include <exception>
 #include <type_traits>
 #include <utility>
 
-namespace hpx { namespace mpi { namespace experimental {
+namespace hpx::mpi::experimental {
+
     namespace detail {
 
         template <typename R, typename... Ts>
@@ -72,7 +71,7 @@ namespace hpx { namespace mpi { namespace experimental {
                 request);
         }
 
-        template <typename R, typename F>
+        HPX_CXX_EXPORT template <typename R, typename F>
         struct transform_mpi_receiver
         {
 #if defined(HPX_HAVE_STDEXEC)
@@ -142,7 +141,7 @@ namespace hpx { namespace mpi { namespace experimental {
             }
         };
 
-        template <typename Sender, typename F>
+        HPX_CXX_EXPORT template <typename Sender, typename F>
         struct transform_mpi_sender
         {
             HPX_NO_UNIQUE_ADDRESS std::decay_t<Sender> s;
@@ -273,7 +272,7 @@ namespace hpx { namespace mpi { namespace experimental {
         };
     }    // namespace detail
 
-    inline constexpr struct transform_mpi_t final
+    HPX_CXX_EXPORT inline constexpr struct transform_mpi_t final
       : hpx::functional::detail::tag_fallback<transform_mpi_t>
     {
     private:
@@ -295,4 +294,4 @@ namespace hpx { namespace mpi { namespace experimental {
                 transform_mpi_t, F>{HPX_FORWARD(F, f)};
         }
     } transform_mpi{};
-}}}    // namespace hpx::mpi::experimental
+}    // namespace hpx::mpi::experimental

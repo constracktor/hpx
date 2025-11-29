@@ -10,20 +10,16 @@
 #include <hpx/config.hpp>
 
 #if defined(HPX_HAVE_STDEXEC)
-#include <hpx/execution_base/stdexec_forward.hpp>
+#include <hpx/modules/execution_base.hpp>
 #else
 
 #include <hpx/assert.hpp>
 #include <hpx/execution/algorithms/detail/inject_scheduler.hpp>
 #include <hpx/execution/algorithms/detail/partial_algorithm.hpp>
 #include <hpx/execution/algorithms/run_loop.hpp>
-#include <hpx/execution_base/completion_scheduler.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/operation_state.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
 #include <hpx/modules/allocator_support.hpp>
 #include <hpx/modules/concepts.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/memory.hpp>
 #include <hpx/modules/tag_invoke.hpp>
 #include <hpx/modules/thread_support.hpp>
@@ -40,7 +36,8 @@ namespace hpx::execution::experimental {
 
     namespace detail {
 
-        template <typename Derived, typename Sender, typename Allocator>
+        HPX_CXX_EXPORT template <typename Derived, typename Sender,
+            typename Allocator>
         struct operation_state_holder_base
         {
             struct start_detached_receiver
@@ -125,7 +122,7 @@ namespace hpx::execution::experimental {
             }
         };
 
-        template <typename Sender, typename Allocator>
+        HPX_CXX_EXPORT template <typename Sender, typename Allocator>
         struct operation_state_holder
           : operation_state_holder_base<
                 operation_state_holder<Sender, Allocator>, Sender, Allocator>
@@ -144,7 +141,7 @@ namespace hpx::execution::experimental {
             static constexpr void finish() noexcept {}
         };
 
-        template <typename Sender, typename Allocator>
+        HPX_CXX_EXPORT template <typename Sender, typename Allocator>
         struct operation_state_holder_with_run_loop
           : operation_state_holder_base<
                 operation_state_holder_with_run_loop<Sender, Allocator>, Sender,
@@ -183,7 +180,7 @@ namespace hpx::execution::experimental {
     //
     // Like ensure_started, but does not return a value; if the provided sender
     // sends an error instead of a value, std::terminate is called.
-    inline constexpr struct start_detached_t final
+    HPX_CXX_EXPORT inline constexpr struct start_detached_t final
       : hpx::functional::detail::tag_priority<start_detached_t>
     {
     private:

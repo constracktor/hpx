@@ -8,12 +8,9 @@
 #pragma once
 
 #include <hpx/assert.hpp>
-#include <hpx/execution_base/completion_signatures.hpp>
-#include <hpx/execution_base/operation_state.hpp>
-#include <hpx/execution_base/receiver.hpp>
-#include <hpx/execution_base/sender.hpp>
 #include <hpx/modules/allocator_support.hpp>
 #include <hpx/modules/datastructures.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/functional.hpp>
 #include <hpx/synchronization/mutex.hpp>
 
@@ -320,7 +317,7 @@ namespace hpx::experimental {
     ///
     /// A void mutex acts as a mutex around some user-managed resource, i.e. the
     /// void mutex does not manage any value and the types sent by the senders
-    /// are not convertible. The sent types are copyable and release access to
+    /// are not convertible. The types sent are copyable and release access to
     /// the protected resource when released.
     ///
     /// The order in which senders call set_value is determined by the order in
@@ -330,7 +327,8 @@ namespace hpx::experimental {
     /// Retrieving senders from the mutex is not thread-safe.
     ///
     /// The mutex is movable and non-copyable.
-    template <typename ReadWriteT = void, typename ReadT = ReadWriteT,
+    HPX_CXX_EXPORT template <typename ReadWriteT = void,
+        typename ReadT = ReadWriteT,
         typename Allocator = hpx::util::internal_allocator<>>
     class async_rw_mutex;
 
@@ -360,7 +358,7 @@ namespace hpx::experimental {
     // The protected value is moved from state to state and is released when the
     // last shared state is destroyed.
 
-    template <typename Allocator>
+    HPX_CXX_EXPORT template <typename Allocator>
     class async_rw_mutex<void, void, Allocator>
     {
     private:
@@ -550,7 +548,8 @@ namespace hpx::experimental {
         shared_state_ptr_type state;
     };
 
-    template <typename ReadWriteT, typename ReadT, typename Allocator>
+    HPX_CXX_EXPORT template <typename ReadWriteT, typename ReadT,
+        typename Allocator>
     class async_rw_mutex
     {
     private:

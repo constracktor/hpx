@@ -9,29 +9,20 @@
 #pragma once
 
 #include <hpx/config.hpp>
-#include <hpx/async_base/launch_policy.hpp>
-#include <hpx/execution/detail/async_launch_policy_dispatch.hpp>
-#include <hpx/execution/detail/future_exec.hpp>
-#include <hpx/execution/detail/post_policy_dispatch.hpp>
-#include <hpx/execution/detail/sync_launch_policy_dispatch.hpp>
-#include <hpx/execution/executors/default_parameters.hpp>
-#include <hpx/execution/executors/execution_parameters.hpp>
-#include <hpx/execution/executors/fused_bulk_execute.hpp>
-#include <hpx/execution_base/execution.hpp>
-#include <hpx/execution_base/traits/is_executor.hpp>
 #include <hpx/executors/detail/index_queue_spawning.hpp>
 #include <hpx/executors/execution_policy_mappings.hpp>
-#include <hpx/futures/future.hpp>
 #include <hpx/modules/allocator_support.hpp>
+#include <hpx/modules/async_base.hpp>
 #include <hpx/modules/concepts.hpp>
 #include <hpx/modules/concurrency.hpp>
+#include <hpx/modules/execution.hpp>
+#include <hpx/modules/execution_base.hpp>
 #include <hpx/modules/functional.hpp>
+#include <hpx/modules/futures.hpp>
 #include <hpx/modules/serialization.hpp>
+#include <hpx/modules/threading_base.hpp>
+#include <hpx/modules/timing.hpp>
 #include <hpx/modules/topology.hpp>
-#include <hpx/threading_base/annotated_function.hpp>
-#include <hpx/threading_base/detail/get_default_pool.hpp>
-#include <hpx/threading_base/thread_data.hpp>
-#include <hpx/timing/steady_clock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -82,7 +73,7 @@ namespace hpx::execution {
     ///
     /// This executor conforms to the concepts of a TwoWayExecutor,
     /// and a BulkTwoWayExecutor
-    template <typename Policy>
+    HPX_CXX_EXPORT template <typename Policy>
     struct parallel_policy_executor
     {
         /// Associate the parallel_execution_tag executor tag type as a default
@@ -572,7 +563,7 @@ namespace hpx::execution {
             }
             else
             {
-                if (policy_.get_policy() == hpx::detail::launch_policy::sync)
+                if (policy_.get_policy() == hpx::launch_policy::sync)
                 {
                     return 1;
                 }
@@ -659,7 +650,7 @@ namespace hpx::execution {
 
     // support all properties exposed by the embedded policy
     // clang-format off
-    template <typename Tag, typename Policy, typename Property,
+    HPX_CXX_EXPORT template <typename Tag, typename Policy, typename Property,
         HPX_CONCEPT_REQUIRES_(
             hpx::execution::experimental::is_scheduling_property_v<Tag>
         )>
@@ -677,7 +668,7 @@ namespace hpx::execution {
     }
 
     // clang-format off
-    template <typename Tag, typename Policy,
+    HPX_CXX_EXPORT template <typename Tag, typename Policy,
         HPX_CONCEPT_REQUIRES_(
             hpx::execution::experimental::is_scheduling_property_v<Tag>
         )>
@@ -688,31 +679,32 @@ namespace hpx::execution {
         return tag(exec.policy());
     }
 
-    using parallel_executor = parallel_policy_executor<hpx::launch>;
+    HPX_CXX_EXPORT using parallel_executor =
+        parallel_policy_executor<hpx::launch>;
 }    // namespace hpx::execution
 
 namespace hpx::execution::experimental {
 
     /// \cond NOINTERNAL
-    template <typename Policy>
+    HPX_CXX_EXPORT template <typename Policy>
     struct is_one_way_executor<hpx::execution::parallel_policy_executor<Policy>>
       : std::true_type
     {
     };
 
-    template <typename Policy>
+    HPX_CXX_EXPORT template <typename Policy>
     struct is_never_blocking_one_way_executor<
         hpx::execution::parallel_policy_executor<Policy>> : std::true_type
     {
     };
 
-    template <typename Policy>
+    HPX_CXX_EXPORT template <typename Policy>
     struct is_two_way_executor<hpx::execution::parallel_policy_executor<Policy>>
       : std::true_type
     {
     };
 
-    template <typename Policy>
+    HPX_CXX_EXPORT template <typename Policy>
     struct is_bulk_two_way_executor<
         hpx::execution::parallel_policy_executor<Policy>> : std::true_type
     {
