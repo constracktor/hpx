@@ -227,10 +227,15 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        for (std::size_t check : recv_data)
+        // Check for correctness: every element must carry the expected value
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
         {
-            HPX_TEST_EQ(42 + i + this_locality, check);
+            if (!HPX_TEST_EQ(
+                    42 + i + this_locality, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
         }
     }
 
@@ -302,8 +307,15 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(
-                i * num_localities, static_cast<std::size_t>(recv_data[0]));
+            HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(
+                        i * num_localities, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -371,10 +383,14 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        if (this_locality == 0)
+        // Check for correctness: every locality holds the broadcast result
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
         {
-            HPX_TEST_EQ(i, static_cast<std::size_t>(recv_data[0]));
+            if (!HPX_TEST_EQ(i, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
         }
     }
 
@@ -443,12 +459,21 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
+        // Check for correctness: site j's whole block must carry (i + j)
         if (this_locality == 0)
         {
-            for (int j = 0; j < static_cast<int>(num_localities); ++j)
+            HPX_TEST_EQ(num_localities, recv_data.size());
+            for (std::size_t j = 0; j != recv_data.size(); ++j)
             {
-                HPX_TEST_EQ(i + j, static_cast<std::size_t>(recv_data[j][0]));
+                HPX_TEST_EQ(
+                    static_cast<std::size_t>(test_size), recv_data[j].size());
+                for (int value : recv_data[j])
+                {
+                    if (!HPX_TEST_EQ(i + j, static_cast<std::size_t>(value)))
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -508,7 +533,15 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         result[i] = timer.elapsed();
 
         // Check for correctness: every site should have the sum
-        HPX_TEST_EQ(i * num_localities, static_cast<std::size_t>(recv_data[0]));
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(
+                    i * num_localities, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -609,10 +642,15 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations, int test_size,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        for (std::size_t check : recv_data)
+        // Check for correctness: every element must carry the expected value
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
         {
-            HPX_TEST_EQ(42 + i + this_locality, check);
+            if (!HPX_TEST_EQ(
+                    42 + i + this_locality, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
         }
     }
 
@@ -672,8 +710,15 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations, int test_size,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(
-                i * num_localities, static_cast<std::size_t>(recv_data[0]));
+            HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(
+                        i * num_localities, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -731,10 +776,14 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations, int test_size,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        if (this_locality == 0)
+        // Check for correctness: every locality holds the broadcast result
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
         {
-            HPX_TEST_EQ(i, static_cast<std::size_t>(recv_data[0]));
+            if (!HPX_TEST_EQ(i, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
         }
     }
 
@@ -792,12 +841,21 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations, int test_size,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
+        // Check for correctness: site j's whole block must carry (i + j)
         if (this_locality == 0)
         {
-            for (int j = 0; j < static_cast<int>(num_localities); ++j)
+            HPX_TEST_EQ(num_localities, recv_data.size());
+            for (std::size_t j = 0; j != recv_data.size(); ++j)
             {
-                HPX_TEST_EQ(i + j, static_cast<std::size_t>(recv_data[j][0]));
+                HPX_TEST_EQ(
+                    static_cast<std::size_t>(test_size), recv_data[j].size());
+                for (int value : recv_data[j])
+                {
+                    if (!HPX_TEST_EQ(i + j, static_cast<std::size_t>(value)))
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -844,8 +902,16 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        HPX_TEST_EQ(i * num_localities, static_cast<std::size_t>(recv_data[0]));
+        // Check for correctness: every site should have the sum
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(
+                    i * num_localities, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -907,10 +973,15 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        for (std::size_t check : recv_data)
+        // Check for correctness: every element must carry the expected value
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
         {
-            HPX_TEST_EQ(42 + i + this_locality, check);
+            if (!HPX_TEST_EQ(
+                    42 + i + this_locality, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
         }
     }
 
@@ -972,8 +1043,15 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(
-                i * num_localities, static_cast<std::size_t>(recv_data[0]));
+            HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(
+                        i * num_localities, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1033,10 +1111,14 @@ void test_multiple_use_with_generation_broadcast(int lpn,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        if (this_locality == 0)
+        // Check for correctness: every locality holds the broadcast result
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
         {
-            HPX_TEST_EQ(i, static_cast<std::size_t>(recv_data[0]));
+            if (!HPX_TEST_EQ(i, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
         }
     }
 
@@ -1096,12 +1178,21 @@ void test_multiple_use_with_generation_gather(
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
+        // Check for correctness: site j's whole block must carry (i + j)
         if (this_locality == 0)
         {
-            for (int j = 0; j < static_cast<int>(num_localities); ++j)
+            HPX_TEST_EQ(num_localities, recv_data.size());
+            for (std::size_t j = 0; j != recv_data.size(); ++j)
             {
-                HPX_TEST_EQ(i + j, static_cast<std::size_t>(recv_data[j][0]));
+                HPX_TEST_EQ(
+                    static_cast<std::size_t>(test_size), recv_data[j].size());
+                for (int value : recv_data[j])
+                {
+                    if (!HPX_TEST_EQ(i + j, static_cast<std::size_t>(value)))
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -1151,8 +1242,16 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
         // Write runtime into vector
         result[i] = timer.elapsed();
 
-        // Check for correctness
-        HPX_TEST_EQ(i * num_localities, static_cast<std::size_t>(recv_data[0]));
+        // Check for correctness: every site should have the sum
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(
+                    i * num_localities, static_cast<std::size_t>(value)))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -1234,10 +1333,19 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
         // Write runtime into vector
         result[i] = timer.elapsed();
         // Check for correctness: every site contributed (i + site), so
-        // recv_data[j][0] must equal (i + j) at every site.
-        for (int j = 0; j < static_cast<int>(num_localities); ++j)
+        // site j's whole block must carry (i + j).
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t j = 0; j != recv_data.size(); ++j)
         {
-            HPX_TEST_EQ(i + j, static_cast<std::size_t>(recv_data[j][0]));
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data[j].size());
+            for (int value : recv_data[j])
+            {
+                if (!HPX_TEST_EQ(i + j, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
@@ -1283,10 +1391,10 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
     std::vector<std::vector<std::uint32_t>> recv_data;
     for (std::size_t i = 0; i != iterations; ++i)
     {
-        // Each destination block carries the source id
+        // Each destination block carries the source id and iteration
         send_data.assign(num_localities,
             std::vector<std::uint32_t>(
-                block_size, static_cast<std::uint32_t>(this_locality)));
+                block_size, static_cast<std::uint32_t>(this_locality + i)));
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         hpx::future<std::vector<std::vector<std::uint32_t>>> ft_data =
@@ -1298,15 +1406,18 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
         barrier.wait();
         // Write runtime into vector
         result[i] = timer.elapsed();
-        // Check for correctness on the first iteration only: result block s
-        // originated at site s. Later iterations are timed unchecked.
-        if (i == 0)
+        // Check for correctness on every iteration: block s originated at
+        // site s in iteration i, so every element must equal (s + i).
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t s = 0; s != recv_data.size(); ++s)
         {
-            HPX_TEST_EQ(recv_data.size(), num_localities);
-            for (std::size_t s = 0; s != num_localities; ++s)
+            HPX_TEST_EQ(block_size, recv_data[s].size());
+            for (std::uint32_t value : recv_data[s])
             {
-                HPX_TEST_EQ(recv_data[s].size(), block_size);
-                HPX_TEST_EQ(static_cast<std::size_t>(recv_data[s][0]), s);
+                if (!HPX_TEST_EQ(s + i, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
             }
         }
     }
@@ -1353,10 +1464,19 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
         barrier.wait();
         // Write runtime into vector
         result[i] = timer.elapsed();
-        // Check for correctness
-        for (int j = 0; j < static_cast<int>(num_localities); ++j)
+        // Check for correctness: site j's whole block must carry (i + j)
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t j = 0; j != recv_data.size(); ++j)
         {
-            HPX_TEST_EQ(i + j, static_cast<std::size_t>(recv_data[j][0]));
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data[j].size());
+            for (int value : recv_data[j])
+            {
+                if (!HPX_TEST_EQ(i + j, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
@@ -1402,10 +1522,19 @@ void test_multiple_use_with_generation_all_gather(int lpn,
         barrier.wait();
         // Write runtime into vector
         result[i] = timer.elapsed();
-        // Check for correctness
-        for (int j = 0; j < static_cast<int>(num_localities); ++j)
+        // Check for correctness: site j's whole block must carry (i + j)
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t j = 0; j != recv_data.size(); ++j)
         {
-            HPX_TEST_EQ(i + j, static_cast<std::size_t>(recv_data[j][0]));
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data[j].size());
+            for (int value : recv_data[j])
+            {
+                if (!HPX_TEST_EQ(i + j, static_cast<std::size_t>(value)))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
