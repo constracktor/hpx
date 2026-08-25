@@ -145,28 +145,29 @@ void write_to_file(std::string const& collective, std::string const& type,
     // Add header if necessary
     std::string const header = "collective;type;arity;nodes;localities;lpn;"
                                "threads;size;iterations;mean;variance\n";
-    // Read existing content
-    std::ifstream infile(runtime_file_path);
-    std::stringstream buffer;
-    buffer << infile.rdbuf();
-    std::string contents = buffer.str();
-    infile.close();
-    // Only append if header not present
-    if (contents.find(header) == std::string::npos)
+    // Write the header only once, when the file is new or empty. Peeking for
+    // EOF avoids reading the whole results file on every append.
+    bool need_header = true;
+    if (std::ifstream in{runtime_file_path}; in.good())
     {
-        std::ofstream outfile(runtime_file_path, std::ios_base::app);
-        outfile << header;
-        outfile.close();
+        need_header = (in.peek() == std::ifstream::traits_type::eof());
     }
 
     // Add runtimes
-    std::ofstream outfile;
-    outfile.open(runtime_file_path, std::ios_base::app);
+    std::ofstream outfile(runtime_file_path, std::ios_base::app);
+    if (!outfile)
+    {
+        throw std::runtime_error(
+            "Failed to open output file: " + runtime_file_path);
+    }
+    if (need_header)
+    {
+        outfile << header;
+    }
     outfile << collective << ";" << type << ";" << arity << ";" << nodes << ";"
             << num_l << ";" << lpn << ";" << threads << ";" << size << ";"
             << iterations << ";" << moments.first << ";" << moments.second
             << "\n";
-    outfile.close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
