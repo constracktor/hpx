@@ -88,6 +88,11 @@ void create_parent_dir(std::filesystem::path const& file_path)
 
 std::pair<double, double> compute_moments(std::vector<double> const& data)
 {
+    if (data.empty())
+    {
+        return std::make_pair(0.0, 0.0);
+    }
+
     // Compute mean
     double sum = 0.0;
     for (double x : data)
@@ -96,13 +101,16 @@ std::pair<double, double> compute_moments(std::vector<double> const& data)
     }
     double mean = sum / static_cast<double>(data.size());
 
-    // Compute variance (population variance)
+    // Compute variance (sample variance, Bessel's correction: the timed
+    // iterations are a sample, not the full population)
     double varianceSum = 0.0;
     for (double x : data)
     {
         varianceSum += (x - mean) * (x - mean);
     }
-    double variance = varianceSum / static_cast<double>(data.size());
+    double variance = data.size() > 1 ?
+        varianceSum / static_cast<double>(data.size() - 1) :
+        0.0;
 
     return std::make_pair(mean, variance);
 }
