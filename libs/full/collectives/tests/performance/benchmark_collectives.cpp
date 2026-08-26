@@ -124,25 +124,36 @@ void write_to_file(std::string const& collective, std::string const& type,
     // Compute nodes
     std::size_t nodes = num_l / static_cast<std::size_t>(lpn);
     auto threads = hpx::get_os_thread_count();
+    // The active parcelport is only known via HPX's own runtime config (it's
+    // selected purely through --hpx:ini=hpx.parcel.bootstrap=<pp>, not a
+    // dedicated command-line option), so query it here rather than trust a
+    // separately-threaded-through value that could drift out of sync.
+    std::string const parcelport =
+        hpx::get_config_entry("hpx.parcel.bootstrap", "unknown");
     // Print info
     std::string msg = "\nCollective:        {1}\n"
                       "Type:              {2}\n"
                       "Arity:             {3}\n"
-                      "Nodes:             {4}\n"
-                      "Localities:        {5}\n"
-                      "Localities/Node:   {6}\n"
-                      "HPX threads:       {7}\n"
-                      "Size/Locality:     {8}\n"
-                      "Iterations:        {9}\n"
-                      "Mean runtime:      {10}\n"
-                      "Variance:          {11}\n";
-    hpx::util::format_to(std::cout, msg, collective, type, arity, nodes, num_l,
-        lpn, threads, size, iterations, moments.first, moments.second)
+                      "Parcelport:        {4}\n"
+                      "Nodes:             {5}\n"
+                      "Localities:        {6}\n"
+                      "Localities/Node:   {7}\n"
+                      "HPX threads:       {8}\n"
+                      "Size/Locality:     {9}\n"
+                      "Iterations:        {10}\n"
+                      "Mean runtime:      {11}\n"
+                      "Variance:          {12}\n";
+    hpx::util::format_to(std::cout, msg, collective, type, arity, parcelport,
+        nodes, num_l, lpn, threads, size, iterations, moments.first,
+        moments.second)
         << std::flush;
 
-    // Create directory
-    std::string runtime_file_path =
-        "result/hpx/" + collective + "/runtimes_" + collective + "_" + type;
+    // Create directory. Path and row both encode parcelport/nodes so results
+    // from different parcelports/node counts (as run.sh sweeps) never land
+    // in the same file or become indistinguishable within one.
+    std::string runtime_file_path = "result/hpx/" + parcelport + "/" +
+        std::to_string(num_l) + "/" + collective + "/runtimes_" + collective +
+        "_" + type;
     if (arity != -1 && type == "hierarchical")
     {
         runtime_file_path = runtime_file_path + "_" + std::to_string(arity);
@@ -151,8 +162,9 @@ void write_to_file(std::string const& collective, std::string const& type,
     create_parent_dir(runtime_file_path);
 
     // Add header if necessary
-    std::string const header = "collective;type;arity;nodes;localities;lpn;"
-                               "threads;size;iterations;mean;variance\n";
+    std::string const header = "collective;type;arity;parcelport;nodes;"
+                               "localities;lpn;threads;size;iterations;mean;"
+                               "variance\n";
     // Write the header only once, when the file is new or empty. Peeking for
     // EOF avoids reading the whole results file on every append.
     bool need_header = true;
@@ -172,9 +184,10 @@ void write_to_file(std::string const& collective, std::string const& type,
     {
         outfile << header;
     }
-    outfile << collective << ";" << type << ";" << arity << ";" << nodes << ";"
-            << num_l << ";" << lpn << ";" << threads << ";" << size << ";"
-            << iterations << ";" << moments.first << ";" << moments.second
+    outfile << collective << ";" << type << ";" << arity << ";" << parcelport
+            << ";" << nodes << ";" << num_l << ";" << lpn << ";" << threads
+            << ";" << size << ";" << iterations << ";" << moments.first << ";"
+            << moments.second
             << "\n";
 }
 
