@@ -213,23 +213,25 @@ void write_to_file(std::string const& collective, std::string const& type,
     std::string const header =
         "collective;type;arity;nodes;localities;lpn;"
         "threads;size;warmup;iterations;mean;variance;stddev;min;max;median\n";
-    // Read existing content
-    std::ifstream infile(runtime_file_path);
-    std::stringstream buffer;
-    buffer << infile.rdbuf();
-    std::string contents = buffer.str();
-    infile.close();
-    // Only append if header not present
-    if (contents.find(header) == std::string::npos)
+    // Write the header only once, when the file is new or empty. Peeking for
+    // EOF avoids reading the whole results file on every append.
+    bool need_header = true;
+    if (std::ifstream in{runtime_file_path}; in.good())
     {
-        std::ofstream outfile(runtime_file_path, std::ios_base::app);
-        outfile << header;
-        outfile.close();
+        need_header = (in.peek() == std::ifstream::traits_type::eof());
     }
 
     // Add runtimes
-    std::ofstream outfile;
-    outfile.open(runtime_file_path, std::ios_base::app);
+    std::ofstream outfile(runtime_file_path, std::ios_base::app);
+    if (!outfile)
+    {
+        throw std::runtime_error(
+            "Failed to open output file: " + runtime_file_path);
+    }
+    if (need_header)
+    {
+        outfile << header;
+    }
     hpx::util::format_to(outfile,
         "{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12};{13};{14};{15};{16}"
         "\n",
