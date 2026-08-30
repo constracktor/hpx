@@ -144,7 +144,7 @@ Stats compute_moments(std::vector<double> data)
     double varianceSum = 0.0;
     for (double x : data)
         varianceSum += (x - mean) * (x - mean);
-    double const variance = varianceSum / n;
+    double const variance = data.size() > 1 ? varianceSum / (n - 1.0) : 0.0;
     double const stddev = std::sqrt(variance);
 
     // Median and min/max: sort in place (data is a local copy)
