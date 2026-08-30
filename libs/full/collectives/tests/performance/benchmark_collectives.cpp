@@ -238,7 +238,6 @@ void write_to_file(std::string const& collective, std::string const& type,
         collective, type, arity, nodes, num_l, lpn, threads, size,
         warmup_iterations, iterations, stats.mean, stats.variance, stats.stddev,
         stats.min, stats.max, stats.median);
-    outfile.close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -395,8 +394,17 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(static_cast<int>(i) * static_cast<int>(num_localities),
-                recv_data[0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i) *
+                            static_cast<int>(num_localities),
+                        value))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -469,7 +477,15 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(static_cast<int>(i), recv_data[0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i), value))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -545,9 +561,18 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            for (std::size_t j = 0; j < num_localities; ++j)
+            HPX_TEST_EQ(num_localities, recv_data.size());
+            for (std::size_t j = 0; j != recv_data.size(); ++j)
             {
-                HPX_TEST_EQ(static_cast<int>(i + j), recv_data[j][0]);
+                HPX_TEST_EQ(static_cast<std::size_t>(test_size),
+                    recv_data[j].size());
+                for (int value : recv_data[j])
+                {
+                    if (!HPX_TEST_EQ(static_cast<int>(i + j), value))
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -613,8 +638,16 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness: every site should have the sum
-        HPX_TEST_EQ(static_cast<int>(i) * static_cast<int>(num_localities),
-            recv_data[0]);
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(static_cast<int>(i) *
+                        static_cast<int>(num_localities),
+                    value))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -685,7 +718,14 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
         {
             expected += static_cast<int>(i + j);
         }
-        HPX_TEST_EQ(expected, recv_data[0]);
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(expected, value))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -760,7 +800,14 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
         {
             expected += static_cast<int>(i + j);
         }
-        HPX_TEST_EQ(expected, recv_data[0]);
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(expected, value))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -953,8 +1000,17 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(static_cast<int>(i) * static_cast<int>(num_localities),
-                recv_data[0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i) *
+                            static_cast<int>(num_localities),
+                        value))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1016,7 +1072,15 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(static_cast<int>(i), recv_data[0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i), value))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1080,9 +1144,18 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            for (std::size_t j = 0; j < num_localities; ++j)
+            HPX_TEST_EQ(num_localities, recv_data.size());
+            for (std::size_t j = 0; j != recv_data.size(); ++j)
             {
-                HPX_TEST_EQ(static_cast<int>(i + j), recv_data[j][0]);
+                HPX_TEST_EQ(static_cast<std::size_t>(test_size),
+                    recv_data[j].size());
+                for (int value : recv_data[j])
+                {
+                    if (!HPX_TEST_EQ(static_cast<int>(i + j), value))
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -1135,8 +1208,16 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
-        HPX_TEST_EQ(static_cast<int>(i) * static_cast<int>(num_localities),
-            recv_data[0]);
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(static_cast<int>(i) *
+                        static_cast<int>(num_localities),
+                    value))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -1283,8 +1364,17 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(static_cast<int>(i) * static_cast<int>(num_localities),
-                recv_data[0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i) *
+                            static_cast<int>(num_localities),
+                        value))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1349,7 +1439,15 @@ void test_multiple_use_with_generation_broadcast(int lpn,
         // Check for correctness
         if (this_locality == 0)
         {
-            HPX_TEST_EQ(static_cast<int>(i), recv_data[0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data.size());
+            for (int value : recv_data)
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i), value))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1415,9 +1513,18 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
         // Check for correctness
         if (this_locality == 0)
         {
-            for (std::size_t j = 0; j < num_localities; ++j)
+            HPX_TEST_EQ(num_localities, recv_data.size());
+            for (std::size_t j = 0; j != recv_data.size(); ++j)
             {
-                HPX_TEST_EQ(static_cast<int>(i + j), recv_data[j][0]);
+                HPX_TEST_EQ(static_cast<std::size_t>(test_size),
+                    recv_data[j].size());
+                for (int value : recv_data[j])
+                {
+                    if (!HPX_TEST_EQ(static_cast<int>(i + j), value))
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -1474,8 +1581,16 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
-        HPX_TEST_EQ(static_cast<int>(i) * static_cast<int>(num_localities),
-            recv_data[0]);
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(static_cast<int>(i) *
+                        static_cast<int>(num_localities),
+                    value))
+            {
+                break;
+            }
+        }
     }
 
     if (this_locality == 0)
@@ -1610,10 +1725,19 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
         if (i >= warmup_iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Check for correctness: every site contributed (i + site), so
-        // recv_data[j][0] must equal (i + j) at every site.
-        for (std::size_t j = 0; j < num_localities; ++j)
+        // site j's whole block must equal (i + j).
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t j = 0; j != recv_data.size(); ++j)
         {
-            HPX_TEST_EQ(static_cast<int>(i + j), recv_data[j][0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data[j].size());
+            for (int value : recv_data[j])
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i + j), value))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
@@ -1675,8 +1799,14 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
         for (std::size_t s = 0; s != num_localities; ++s)
         {
             HPX_TEST_EQ(recv_data[s].size(), block_size);
-            HPX_TEST_EQ(
-                recv_data[s][0], static_cast<int>(s + this_locality + i));
+            for (int value : recv_data[s])
+            {
+                if (!HPX_TEST_EQ(
+                        value, static_cast<int>(s + this_locality + i)))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1741,8 +1871,14 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
         for (std::size_t s = 0; s != num_localities; ++s)
         {
             HPX_TEST_EQ(recv_data[s].size(), block_size);
-            HPX_TEST_EQ(
-                recv_data[s][0], static_cast<int>(s + this_locality + i));
+            for (int value : recv_data[s])
+            {
+                if (!HPX_TEST_EQ(
+                        value, static_cast<int>(s + this_locality + i)))
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -1814,8 +1950,14 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
         for (std::size_t s = 0; s != num_localities; ++s)
         {
             HPX_TEST_EQ(recv_data[s].size(), block_size);
-            HPX_TEST_EQ(
-                recv_data[s][0], static_cast<int>(s + this_locality + i));
+            for (int value : recv_data[s])
+            {
+                if (!HPX_TEST_EQ(
+                        value, static_cast<int>(s + this_locality + i)))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
@@ -1866,9 +2008,18 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
         if (i >= warmup_iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Check for correctness
-        for (std::size_t j = 0; j < num_localities; ++j)
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t j = 0; j != recv_data.size(); ++j)
         {
-            HPX_TEST_EQ(static_cast<int>(i + j), recv_data[j][0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data[j].size());
+            for (int value : recv_data[j])
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i + j), value))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
@@ -1920,9 +2071,18 @@ void test_multiple_use_with_generation_all_gather(int lpn,
         if (i >= warmup_iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Check for correctness
-        for (std::size_t j = 0; j < num_localities; ++j)
+        HPX_TEST_EQ(num_localities, recv_data.size());
+        for (std::size_t j = 0; j != recv_data.size(); ++j)
         {
-            HPX_TEST_EQ(static_cast<int>(i + j), recv_data[j][0]);
+            HPX_TEST_EQ(
+                static_cast<std::size_t>(test_size), recv_data[j].size());
+            for (int value : recv_data[j])
+            {
+                if (!HPX_TEST_EQ(static_cast<int>(i + j), value))
+                {
+                    break;
+                }
+            }
         }
     }
     if (this_locality == 0)
@@ -1973,7 +2133,13 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
         for (std::size_t j = 0; j < this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
         HPX_TEST_EQ(recv_data.size(), block_size);
-        HPX_TEST_EQ(recv_data[0], expected);
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(value, expected))
+            {
+                break;
+            }
+        }
     }
     if (this_locality == 0)
     {
@@ -2027,7 +2193,13 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
         for (std::size_t j = 0; j < this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
         HPX_TEST_EQ(recv_data.size(), block_size);
-        HPX_TEST_EQ(recv_data[0], expected);
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(value, expected))
+            {
+                break;
+            }
+        }
     }
     if (this_locality == 0)
     {
@@ -2075,7 +2247,13 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
         for (std::size_t j = 0; j <= this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
         HPX_TEST_EQ(recv_data.size(), block_size);
-        HPX_TEST_EQ(recv_data[0], expected);
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(value, expected))
+            {
+                break;
+            }
+        }
     }
     if (this_locality == 0)
     {
@@ -2128,7 +2306,13 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
         for (std::size_t j = 0; j <= this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
         HPX_TEST_EQ(recv_data.size(), block_size);
-        HPX_TEST_EQ(recv_data[0], expected);
+        for (int value : recv_data)
+        {
+            if (!HPX_TEST_EQ(value, expected))
+            {
+                break;
+            }
+        }
     }
     if (this_locality == 0)
     {
