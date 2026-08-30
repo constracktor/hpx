@@ -26,6 +26,7 @@
 #include <map>
 #include <numeric>
 #include <string>
+#include <system_error>
 #include <vector>
 
 using namespace hpx::collectives;
@@ -103,19 +104,21 @@ struct vector_adder
 
 void create_parent_dir(std::filesystem::path const& file_path)
 {
-    // Create parent directory if does not exist
-    std::filesystem::path dir_path = file_path.parent_path();
-    if (!std::filesystem::exists(dir_path))
+    // Create parent directory if it does not exist
+    std::filesystem::path const dir_path = file_path.parent_path();
+    if (dir_path.empty() || std::filesystem::exists(dir_path))
     {
-        if (std::filesystem::create_directories(dir_path))
-        {
-            std::cout << "Directory created: " << dir_path << "\n";
-        }
-        else
-        {
-            throw std::runtime_error("Failed to create directory: " +
-                hpx::filesystem::to_string(dir_path));
-        }
+        return;
+    }
+    std::error_code ec;
+    if (!std::filesystem::create_directories(dir_path, ec) &&
+        !std::filesystem::exists(dir_path))
+    {
+        // create_directories() also returns false when another process won
+        // the race and created the directory first; only a genuine failure
+        // (it still does not exist) is an error.
+        throw std::runtime_error("Failed to create directory: " +
+            hpx::filesystem::to_string(dir_path) + " (" + ec.message() + ")");
     }
 }
 
