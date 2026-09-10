@@ -284,12 +284,9 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/scatter/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -298,9 +295,7 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/scatter/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -357,9 +352,7 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -392,12 +385,9 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/reduce/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -406,9 +396,7 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/reduce/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -463,9 +451,7 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -498,12 +484,9 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/broadcast/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -512,9 +495,7 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/broadcast/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -563,9 +544,7 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -598,12 +577,9 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/gather/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -612,9 +588,7 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/gather/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -670,9 +644,7 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -705,12 +677,9 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/all_reduce/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -719,9 +688,7 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_reduce/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -762,9 +729,7 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -798,12 +763,9 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/inclusive_scan/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -812,9 +774,7 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/inclusive_scan/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -860,9 +820,7 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -896,12 +854,9 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/exclusive_scan/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -910,9 +865,7 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/exclusive_scan/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -962,9 +915,7 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
         }
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -994,12 +945,9 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/barrier/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -1008,9 +956,7 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/barrier/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1031,9 +977,7 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
             result[i - warmup_iterations] = elapsed;
     }
 
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -1900,12 +1844,9 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/all_gather/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -1914,9 +1855,7 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_gather/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1956,9 +1895,7 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
             }
         }
     }
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
@@ -2134,12 +2071,9 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Inter-iteration synchronization. Deliberately hierarchical, and on a
-    // communicator of its own so it cannot collide with the generation
-    // numbering of the communicator under test: a flat, locality-0-rooted sync
-    // lets every off-critical-path site queue its next-iteration parcel at
-    // locality 0 while locality 0 is still walking its own tree, and that
-    // queueing delay is then charged to the collective being measured.
+    // Hierarchical sync, own communicator (avoids colliding with the tested
+    // collective's generations). A flat sync would let idle sites flood
+    // locality 0 while it's still walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/all_to_all/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -2148,9 +2082,7 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
             flat_fallback_threshold_arg() :
             flat_fallback_threshold_arg(
                 static_cast<std::size_t>(fallback_threshold)));
-    // Timing aggregation. Per-iteration elapsed times stay local and are
-    // reduced element-wise exactly once, after the measurement loop, so the
-    // aggregation adds no traffic to the measured path either.
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_to_all/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -2199,9 +2131,7 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
             }
         }
     }
-    // Aggregate the per-iteration maxima across all sites in one reduction,
-    // off the measured path. Root ends up with the same per-iteration maximum
-    // the in-loop scalar reduction used to produce.
+    // Aggregate per-iteration maxima once, off the measured path.
     reduce(timing_comm, result, vector_double_max{},
         this_site_arg(this_locality), generation_arg(1));
 
