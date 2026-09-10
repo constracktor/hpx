@@ -83,6 +83,29 @@ struct double_max
     }
 };
 
+// Element-wise maximum of two equally sized timing vectors. The hierarchical
+// benchmarks keep their per-iteration elapsed times local and aggregate them
+// with a single reduction after the measurement loop, which needs a vector
+// valued combiner rather than the scalar one above.
+struct vector_double_max
+{
+    std::vector<double> operator()(
+        std::vector<double> const& a, std::vector<double> const& b) const
+    {
+        if (a.size() != b.size())
+        {
+            throw std::runtime_error("Vector sizes must match!");
+        }
+
+        std::vector<double> result(a.size());
+        for (std::size_t i = 0; i != a.size(); ++i)
+        {
+            result[i] = (std::max) (a[i], b[i]);
+        }
+        return result;
+    }
+};
+
 struct vector_adder
 {
     std::vector<int> operator()(
@@ -243,8 +266,8 @@ void write_to_file(std::string const& collective, std::string const& type,
 ////////////////////////////////////////////////////////////////////////////////////////
 // Hierarchical collectives
 void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -261,10 +284,23 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/scatter/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/scatter/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -279,7 +315,8 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         if (this_locality == 0)
         {
@@ -290,7 +327,9 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
             }
         }
 
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         auto iter_data = send_data;
         hpx::chrono::high_resolution_timer const timer;
@@ -305,12 +344,9 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
                 this_site_arg(this_locality), generation_arg(i + 1));
         }
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         for (int check : recv_data)
@@ -320,6 +356,12 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
                 check);
         }
     }
+
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -332,8 +374,8 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 
 void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -350,10 +392,23 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/reduce/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/reduce/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -362,12 +417,15 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(
             static_cast<std::size_t>(test_size), static_cast<int>(i));
 
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         if (this_locality == 0)
@@ -384,12 +442,9 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 this_site_arg(this_locality), generation_arg(i + 1));
             finished.get();
         }
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -408,6 +463,12 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -419,8 +480,8 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 
 void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -437,10 +498,23 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/broadcast/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/broadcast/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -449,9 +523,12 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         if (this_locality == 0)
@@ -467,12 +544,9 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
                 this_site_arg(this_locality), generation_arg(i + 1));
         }
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -489,6 +563,12 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -500,8 +580,8 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 
 void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -518,10 +598,23 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/gather/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/gather/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -530,12 +623,15 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
     std::vector<std::vector<int>> recv_data;
     hpx::future<std::vector<std::vector<int>>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(static_cast<std::size_t>(test_size),
             static_cast<int>(i + this_locality));
 
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         if (this_locality == 0)
@@ -551,12 +647,9 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                     this_site_arg(this_locality), generation_arg(i + 1));
             finished.get();
         }
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -577,6 +670,12 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -588,8 +687,8 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 
 void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -606,10 +705,23 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/all_reduce/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_reduce/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -617,12 +729,15 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
     // Data
     std::vector<int> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(
             static_cast<std::size_t>(test_size), static_cast<int>(i));
 
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         hpx::future<std::vector<int>> ft_data =
@@ -630,12 +745,9 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 this_site_arg(this_locality), generation_arg(i + 1));
         recv_data = ft_data.get();
 
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness: every site should have the sum
         HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
@@ -650,6 +762,12 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
         }
     }
 
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -661,7 +779,8 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 
 void test_inclusive_scan_hierarchical(int arity, int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation, int fallback_threshold)
 {
     // Get parameters
@@ -679,10 +798,23 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/inclusive_scan/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/inclusive_scan/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -691,12 +823,15 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
     std::vector<int> send_data;
     std::vector<int> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         send_data =
             std::vector<int>(test_size, static_cast<int>(i + this_locality));
 
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         hpx::future<std::vector<int>> ft_data =
@@ -705,12 +840,9 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
                 this_site_arg(this_locality), generation_arg(i + 1));
         recv_data = ft_data.get();
 
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         int expected = 0;
@@ -728,6 +860,12 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
         }
     }
 
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -739,7 +877,8 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
 }
 
 void test_exclusive_scan_hierarchical(int arity, int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation, int fallback_threshold)
 {
     // Get parameters
@@ -757,10 +896,23 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/exclusive_scan/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/exclusive_scan/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -770,13 +922,16 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
     std::vector<int> init_data;
     std::vector<int> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         send_data =
             std::vector<int>(test_size, static_cast<int>(i + this_locality));
         init_data = std::vector<int>(test_size, static_cast<int>(i));
 
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         hpx::future<std::vector<int>> ft_data =
@@ -787,12 +942,9 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
                 this_site_arg(this_locality), generation_arg(i + 1));
         recv_data = ft_data.get();
 
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         int expected = static_cast<int>(i);
@@ -810,6 +962,12 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
         }
     }
 
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -821,8 +979,8 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
 }
 
 void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     std::size_t const num_localities =
         hpx::get_num_localities(hpx::launch::sync);
@@ -836,27 +994,48 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    char const* const barrier_sync_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier sync(barrier_sync_name);
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/barrier/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/barrier/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
     std::vector<double> result(iterations, 0.0);
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
-        sync.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         hpx::chrono::high_resolution_timer const timer;
         hpx::collectives::barrier(
             communicators, this_site_arg(this_locality), generation_arg(i + 1))
             .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
     }
+
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -871,7 +1050,8 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
 ////////////////////////////////////////////////////////////////////////////////////////
 // One shot collectives
 void test_one_shot_use_scatter(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -897,7 +1077,8 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         if (this_locality == 0)
         {
@@ -928,7 +1109,7 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -948,7 +1129,8 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
 }
 
 void test_one_shot_use_reduce(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -968,7 +1150,8 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(
             static_cast<std::size_t>(test_size), static_cast<int>(i));
@@ -994,7 +1177,7 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1022,7 +1205,8 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
 }
 
 void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1042,7 +1226,8 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         barrier.wait();
         // Time collective
@@ -1066,7 +1251,7 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1092,7 +1277,8 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
 }
 
 void test_one_shot_use_gather(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1112,7 +1298,8 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
     std::vector<std::vector<int>> recv_data;
     hpx::future<std::vector<std::vector<int>>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(static_cast<std::size_t>(test_size),
             static_cast<int>(i + this_locality));
@@ -1138,7 +1325,7 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1168,7 +1355,8 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
 }
 
 void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1187,7 +1375,8 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
     // Data
     std::vector<int> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(
             static_cast<std::size_t>(test_size), static_cast<int>(i));
@@ -1204,7 +1393,7 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1230,7 +1419,8 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
 ////////////////////////////////////////////////////////////////////////////////////////
 // Multi-use shot collectives
 void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1260,7 +1450,8 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         if (this_locality == 0)
         {
@@ -1290,7 +1481,7 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1310,7 +1501,8 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
 }
 
 void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1334,7 +1526,8 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(
             static_cast<std::size_t>(test_size), static_cast<int>(i));
@@ -1358,7 +1551,7 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1386,7 +1579,8 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
 }
 
 void test_multiple_use_with_generation_broadcast(int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation)
 {
     // Get parameters
@@ -1411,7 +1605,8 @@ void test_multiple_use_with_generation_broadcast(int lpn,
     std::vector<int> recv_data;
     hpx::future<std::vector<int>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         barrier.wait();
         // Time collective
@@ -1433,7 +1628,7 @@ void test_multiple_use_with_generation_broadcast(int lpn,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1459,7 +1654,8 @@ void test_multiple_use_with_generation_broadcast(int lpn,
 }
 
 void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1483,7 +1679,8 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
     std::vector<std::vector<int>> recv_data;
     hpx::future<std::vector<std::vector<int>>> ft_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(static_cast<std::size_t>(test_size),
             static_cast<int>(i + this_locality));
@@ -1507,7 +1704,7 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1537,7 +1734,8 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
 }
 
 void test_multiple_use_with_generation_all_reduce(int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation)
 {
     // Get parameters
@@ -1561,7 +1759,8 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
     // Data
     std::vector<int> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(
             static_cast<std::size_t>(test_size), static_cast<int>(i));
@@ -1577,7 +1776,7 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
@@ -1601,7 +1800,8 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
 }
 
 void test_one_shot_use_barrier(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     std::size_t const num_localities =
         hpx::get_num_localities(hpx::launch::sync);
@@ -1614,7 +1814,8 @@ void test_one_shot_use_barrier(int lpn, std::size_t iterations,
             num_sites_arg(num_localities), this_site_arg(this_locality));
     std::vector<double> result(iterations, 0.0);
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         // Create a new communicator per iteration (one-shot semantics)
         auto const barrier_comm = create_communicator(barrier_bench_basename,
@@ -1629,7 +1830,7 @@ void test_one_shot_use_barrier(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
     }
 
@@ -1641,7 +1842,8 @@ void test_one_shot_use_barrier(int lpn, std::size_t iterations,
 }
 
 void test_multiple_use_with_generation_barrier(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     std::size_t const num_localities =
         hpx::get_num_localities(hpx::launch::sync);
@@ -1656,7 +1858,8 @@ void test_multiple_use_with_generation_barrier(int lpn, std::size_t iterations,
             num_sites_arg(num_localities), this_site_arg(this_locality));
     std::vector<double> result(iterations, 0.0);
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         sync.wait();
         hpx::chrono::high_resolution_timer const timer;
@@ -1667,7 +1870,7 @@ void test_multiple_use_with_generation_barrier(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
     }
 
@@ -1679,8 +1882,8 @@ void test_multiple_use_with_generation_barrier(int lpn, std::size_t iterations,
 }
 
 void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1697,33 +1900,46 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/all_gather/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_gather/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
     std::vector<double> result(iterations, 0.0);
     // Data
     std::vector<std::vector<int>> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(static_cast<std::size_t>(test_size),
             static_cast<int>(i + this_locality));
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         hpx::chrono::high_resolution_timer const timer;
         hpx::future<std::vector<std::vector<int>>> ft_data =
             all_gather(communicators, std::move(iter_data),
                 this_site_arg(this_locality), generation_arg(i + 1));
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
         // Check for correctness: every site contributed (i + site), so
         // site j's whole block must equal (i + j).
         HPX_TEST_EQ(num_localities, recv_data.size());
@@ -1740,6 +1956,12 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
             }
         }
     }
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -1751,7 +1973,8 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 
 void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1772,7 +1995,8 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
         num_localities, std::vector<int>(block_size, 0));
     std::vector<std::vector<int>> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         for (std::size_t j = 0; j < num_localities; ++j)
         {
@@ -1792,7 +2016,7 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Correctness: recv_data[s][*] == s + this_locality + i
         HPX_TEST_EQ(recv_data.size(), num_localities);
@@ -1821,7 +2045,8 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
 }
 
 void test_multiple_use_with_generation_all_to_all(int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation)
 {
     // Get parameters
@@ -1846,7 +2071,8 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
         num_localities, std::vector<int>(block_size, 0));
     std::vector<std::vector<int>> recv_data;
 
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         for (std::size_t j = 0; j < num_localities; ++j)
         {
@@ -1864,7 +2090,7 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Correctness: recv_data[s][*] == s + this_locality + i
         HPX_TEST_EQ(recv_data.size(), num_localities);
@@ -1890,8 +2116,8 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
 }
 
 void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation,
-    int fallback_threshold)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation, int fallback_threshold)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1908,10 +2134,23 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Barrier for synchronization
-    char const* const barrier_test_name = "/test/barrier/hierarchical";
-    hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Inter-iteration synchronization. Deliberately hierarchical, and on a
+    // communicator of its own so it cannot collide with the generation
+    // numbering of the communicator under test: a flat, locality-0-rooted sync
+    // lets every off-critical-path site queue its next-iteration parcel at
+    // locality 0 while locality 0 is still walking its own tree, and that
+    // queueing delay is then charged to the collective being measured.
+    auto const sync_communicators = create_hierarchical_communicator(
+        "/test/sync_barrier/all_to_all/hierarchical/",
+        num_sites_arg(num_localities), this_site_arg(this_locality),
+        arity_arg(arity), generation_arg(1), root_site_arg(0),
+        fallback_threshold < 0 ?
+            flat_fallback_threshold_arg() :
+            flat_fallback_threshold_arg(
+                static_cast<std::size_t>(fallback_threshold)));
+    // Timing aggregation. Per-iteration elapsed times stay local and are
+    // reduced element-wise exactly once, after the measurement loop, so the
+    // aggregation adds no traffic to the measured path either.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_to_all/hierarchical/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1921,7 +2160,8 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
     std::vector<std::vector<int>> send_data(
         num_localities, std::vector<int>(block_size, 0));
     std::vector<std::vector<int>> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         // Refill: block j carries (this_locality + j + i)
         for (std::size_t j = 0; j < num_localities; ++j)
@@ -1929,7 +2169,9 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
             std::fill(send_data[j].begin(), send_data[j].end(),
                 static_cast<int>(this_locality + j + i));
         }
-        barrier.wait();
+        hpx::collectives::barrier(sync_communicators,
+            this_site_arg(this_locality), generation_arg(i + 1))
+            .get();
         // Time collective
         // all_to_all consumes its payload via &&; copy the pre-filled buffer
         // so the pre-allocated shape survives for the next iteration.
@@ -1939,12 +2181,9 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
             all_to_all(communicators, std::move(iter_data),
                 this_site_arg(this_locality), generation_arg(i + 1));
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
-            result[i - warmup_iterations] = max_elapsed;
+        double const elapsed = timer.elapsed();
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
+            result[i - warmup_iterations] = elapsed;
         // Correctness: recv_data[s][*] == s + this_locality + i
         HPX_TEST_EQ(recv_data.size(), num_localities);
         for (std::size_t s = 0; s != num_localities; ++s)
@@ -1960,6 +2199,12 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
             }
         }
     }
+    // Aggregate the per-iteration maxima across all sites in one reduction,
+    // off the measured path. Root ends up with the same per-iteration maximum
+    // the in-loop scalar reduction used to produce.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         std::string const mod_name = fallback_threshold < 0 ?
@@ -1971,7 +2216,8 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -1989,7 +2235,8 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
     std::vector<double> result(iterations, 0.0);
     // Data
     std::vector<std::vector<int>> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(static_cast<std::size_t>(test_size),
             static_cast<int>(i + this_locality));
@@ -2005,7 +2252,7 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Check for correctness
         HPX_TEST_EQ(num_localities, recv_data.size());
@@ -2030,7 +2277,8 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 void test_multiple_use_with_generation_all_gather(int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation)
 {
     // Get parameters
@@ -2053,7 +2301,8 @@ void test_multiple_use_with_generation_all_gather(int lpn,
     std::vector<double> result(iterations, 0.0);
     // Data
     std::vector<std::vector<int>> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> iter_data(static_cast<std::size_t>(test_size),
             static_cast<int>(i + this_locality));
@@ -2068,7 +2317,7 @@ void test_multiple_use_with_generation_all_gather(int lpn,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         // Check for correctness
         HPX_TEST_EQ(num_localities, recv_data.size());
@@ -2093,7 +2342,8 @@ void test_multiple_use_with_generation_all_gather(int lpn,
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -2111,7 +2361,8 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
     std::size_t const block_size = static_cast<std::size_t>(test_size);
     std::vector<double> result(iterations, 0.0);
     std::vector<int> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> value(
             block_size, static_cast<int>(this_locality + 1 + i));
@@ -2127,7 +2378,7 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         int expected = 0;
         for (std::size_t j = 0; j < this_locality; ++j)
@@ -2149,7 +2400,8 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 void test_multiple_use_with_generation_exclusive_scan(int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation)
 {
     // Get parameters
@@ -2172,7 +2424,8 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
     std::size_t const block_size = static_cast<std::size_t>(test_size);
     std::vector<double> result(iterations, 0.0);
     std::vector<int> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> value(
             block_size, static_cast<int>(this_locality + 1 + i));
@@ -2187,7 +2440,7 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         int expected = 0;
         for (std::size_t j = 0; j < this_locality; ++j)
@@ -2208,7 +2461,8 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
     }
 }
 void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
-    std::size_t warmup_iterations, int test_size, std::string const& operation)
+    std::size_t warmup_iterations, std::size_t cooldown_iterations,
+    int test_size, std::string const& operation)
 {
     // Get parameters
     std::size_t const num_localities =
@@ -2226,7 +2480,8 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
     std::size_t const block_size = static_cast<std::size_t>(test_size);
     std::vector<double> result(iterations, 0.0);
     std::vector<int> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> value(
             block_size, static_cast<int>(this_locality + 1 + i));
@@ -2241,7 +2496,7 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         int expected = 0;
         for (std::size_t j = 0; j <= this_locality; ++j)
@@ -2263,7 +2518,8 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
 }
 ////////////////////////////////////////////////////////////////////////////////////////
 void test_multiple_use_with_generation_inclusive_scan(int lpn,
-    std::size_t iterations, std::size_t warmup_iterations, int test_size,
+    std::size_t iterations, std::size_t warmup_iterations,
+    std::size_t cooldown_iterations, int test_size,
     std::string const& operation)
 {
     // Get parameters
@@ -2286,7 +2542,8 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
     std::size_t const block_size = static_cast<std::size_t>(test_size);
     std::vector<double> result(iterations, 0.0);
     std::vector<int> recv_data;
-    for (std::size_t i = 0; i != warmup_iterations + iterations; ++i)
+    for (std::size_t i = 0;
+        i != warmup_iterations + iterations + cooldown_iterations; ++i)
     {
         std::vector<int> value(
             block_size, static_cast<int>(this_locality + 1 + i));
@@ -2300,7 +2557,7 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
         double max_elapsed = timer.elapsed();
         reduce(timing_comm, max_elapsed, double_max{},
             this_site_arg(this_locality), generation_arg(i + 1));
-        if (i >= warmup_iterations)
+        if (i >= warmup_iterations && i < warmup_iterations + iterations)
             result[i - warmup_iterations] = max_elapsed;
         int expected = 0;
         for (std::size_t j = 0; j <= this_locality; ++j)
@@ -2322,12 +2579,14 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
 }
 struct benchmarking_functions
 {
-    hpx::function<void(int, std::size_t, std::size_t, int, std::string const&)>
-        one_shot;
-    hpx::function<void(int, std::size_t, std::size_t, int, std::string const&)>
-        multiple_use;
     hpx::function<void(
-        int, int, std::size_t, std::size_t, int, std::string const&, int)>
+        int, std::size_t, std::size_t, std::size_t, int, std::string const&)>
+        one_shot;
+    hpx::function<void(
+        int, std::size_t, std::size_t, std::size_t, int, std::string const&)>
+        multiple_use;
+    hpx::function<void(int, int, std::size_t, std::size_t, std::size_t, int,
+        std::string const&, int)>
         hierarchical;
 };
 
@@ -2340,14 +2599,16 @@ int hpx_main(hpx::program_options::variables_map& vm)
     int const iterations = vm["iterations"].as<int>();
     int const fallback_threshold = vm["fallback_threshold"].as<int>();
     int const warmup_iterations = vm["warmup_iterations"].as<int>();
+    int const cooldown_iterations = vm["cooldown_iterations"].as<int>();
+    bool const skip_one_shot = vm["skip_one_shot"].as<bool>();
     pairwise_threshold_option = vm["pairwise_threshold"].as<int>();
 
-    if (iterations <= 0 || warmup_iterations < 0 || test_size <= 0 ||
-        lpn <= 0 || pairwise_threshold_option < -1)
+    if (iterations <= 0 || warmup_iterations < 0 || cooldown_iterations < 0 ||
+        test_size <= 0 || lpn <= 0 || pairwise_threshold_option < -1)
     {
         std::cout << "error: iterations and test_size and lpn must be > 0; "
-                     "warmup_iterations must be >= 0; pairwise_threshold "
-                     "must be >= -1\n";
+                     "warmup_iterations and cooldown_iterations must be >= 0; "
+                     "pairwise_threshold must be >= -1\n";
         return hpx::finalize();
     }
 
@@ -2404,17 +2665,23 @@ int hpx_main(hpx::program_options::variables_map& vm)
         }
         if (arity == -1)
         {
-            it->second.one_shot(lpn, iterations,
-                static_cast<std::size_t>(warmup_iterations), test_size,
-                operation);
+            if (!skip_one_shot)
+            {
+                it->second.one_shot(lpn, iterations,
+                    static_cast<std::size_t>(warmup_iterations),
+                    static_cast<std::size_t>(cooldown_iterations), test_size,
+                    operation);
+            }
             it->second.multiple_use(lpn, iterations,
-                static_cast<std::size_t>(warmup_iterations), test_size,
+                static_cast<std::size_t>(warmup_iterations),
+                static_cast<std::size_t>(cooldown_iterations), test_size,
                 operation);
         }
         else
         {
             it->second.hierarchical(arity, lpn, iterations,
-                static_cast<std::size_t>(warmup_iterations), test_size,
+                static_cast<std::size_t>(warmup_iterations),
+                static_cast<std::size_t>(cooldown_iterations), test_size,
                 operation, fallback_threshold);
         }
     }
@@ -2446,11 +2713,18 @@ int main(int argc, char* argv[])
             "with hierarchical mode.")
         ("warmup_iterations", value<int>()->default_value(3),
             "Number of warmup iterations before the timed loop (default 3)")
+        ("cooldown_iterations", value<int>()->default_value(0),
+            "Number of extra iterations run after the measured ones and "
+            "discarded, giving the last measured iteration a successor too "
+            "(default 0)")
         ("pairwise_threshold", value<int>()->default_value(-1),
             "Per-pair payload size in bytes at or above which the one-shot "
             "all_to_all exchanges rows directly between sites. -1 uses the "
             "library default. Set to 0 to force the direct exchange. Only "
-            "meaningful with --operation=all_to_all and --arity=-1.");
+            "meaningful with --operation=all_to_all and --arity=-1.")
+        ("skip_one_shot", value<bool>()->default_value(false),
+            "Skip the one-shot (single_use) benchmark when --arity=-1, "
+            "running only the multi_use benchmark.");
     // clang-format on
 
     std::vector<std::string> const cfg = {"hpx.run_hpx_main!=1"};
