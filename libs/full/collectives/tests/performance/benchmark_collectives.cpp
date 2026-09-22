@@ -344,11 +344,13 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
             result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
         for (int check : recv_data)
         {
-            HPX_TEST_EQ(
-                static_cast<int>(42 + i) + static_cast<int>(this_locality),
-                check);
+            if (!HPX_TEST_EQ(
+                    static_cast<int>(42 + i) + static_cast<int>(this_locality),
+                    check))
+                break;
         }
     }
 
@@ -1057,11 +1059,13 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
         for (int check : recv_data)
         {
-            HPX_TEST_EQ(
-                static_cast<int>(42 + i) + static_cast<int>(this_locality),
-                check);
+            if (!HPX_TEST_EQ(
+                    static_cast<int>(42 + i) + static_cast<int>(this_locality),
+                    check))
+                break;
         }
     }
 
@@ -1429,11 +1433,13 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
             result[i - warmup_iterations] = max_elapsed;
 
         // Check for correctness
+        HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
         for (int check : recv_data)
         {
-            HPX_TEST_EQ(
-                static_cast<int>(42 + i) + static_cast<int>(this_locality),
-                check);
+            if (!HPX_TEST_EQ(
+                    static_cast<int>(42 + i) + static_cast<int>(this_locality),
+                    check))
+                break;
         }
     }
 
