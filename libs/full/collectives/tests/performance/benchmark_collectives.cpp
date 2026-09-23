@@ -75,18 +75,9 @@ pairwise_threshold_arg benchmark_pairwise_threshold(
 constexpr char const* exclusive_scan_basename = "/test/exclusive_scan_direct/";
 constexpr char const* inclusive_scan_basename = "/test/inclusive_scan_direct/";
 
-struct double_max
-{
-    double operator()(double a, double b) const
-    {
-        return (std::max) (a, b);
-    }
-};
-
-// Element-wise maximum of two equally sized timing vectors. The hierarchical
-// benchmarks keep their per-iteration elapsed times local and aggregate them
-// with a single reduction after the measurement loop, which needs a vector
-// valued combiner rather than the scalar one above.
+// Element-wise maximum of two equally sized timing vectors. Every benchmark
+// keeps its per-iteration elapsed times local and aggregates them with a
+// single reduction after the measurement loop, off the measured path.
 struct vector_double_max
 {
     std::vector<double> operator()(
@@ -1051,12 +1042,9 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
                 this_site_arg(this_locality), generation_arg(i + 1));
         }
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
@@ -1068,6 +1056,10 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
                 break;
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1121,12 +1113,9 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
                     this_site_arg(this_locality), generation_arg(i + 1));
             finished.get();
         }
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -1144,6 +1133,10 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1195,12 +1188,9 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
                     this_site_arg(this_locality), generation_arg(i + 1));
         }
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -1216,6 +1206,10 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1269,12 +1263,9 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
                     this_site_arg(this_locality), generation_arg(i + 1));
             finished.get();
         }
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -1294,6 +1285,10 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1337,12 +1332,9 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
                 vector_adder{}, num_sites_arg(num_localities),
                 this_site_arg(this_locality), generation_arg(i + 1));
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
@@ -1356,6 +1348,10 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1425,12 +1421,9 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
                 scatter_direct_client, generation_arg(i + 1));
         }
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
@@ -1442,6 +1435,10 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
                 break;
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1497,12 +1494,9 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
                 std::move(iter_data), generation_arg(i + 1));
             finished.get();
         }
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -1520,6 +1514,10 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1574,12 +1572,9 @@ void test_multiple_use_with_generation_broadcast(int lpn,
                 broadcast_direct_client, generation_arg(i + 1));
         }
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -1595,6 +1590,10 @@ void test_multiple_use_with_generation_broadcast(int lpn,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1650,12 +1649,9 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
                 std::move(iter_data), generation_arg(i + 1));
             finished.get();
         }
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         if (this_locality == 0)
@@ -1675,6 +1671,10 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1722,12 +1722,9 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
             all_reduce(all_reduce_direct_client, std::move(iter_data),
                 vector_adder{}, generation_arg(i + 1));
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
 
         // Check for correctness
         HPX_TEST_EQ(static_cast<std::size_t>(test_size), recv_data.size());
@@ -1741,6 +1738,10 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1776,13 +1777,14 @@ void test_one_shot_use_barrier(int lpn, std::size_t iterations,
         hpx::collectives::barrier(
             barrier_comm, this_site_arg(this_locality), generation_arg(1))
             .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1816,13 +1818,14 @@ void test_multiple_use_with_generation_barrier(int lpn, std::size_t iterations,
         hpx::collectives::barrier(
             barrier_client, this_site_arg(this_locality), generation_arg(i + 1))
             .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -1955,12 +1958,9 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
             generation_arg(i + 1), root_site_arg(0),
             benchmark_pairwise_threshold(block_size))
                         .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         // Correctness: recv_data[s][*] == s + this_locality + i
         HPX_TEST_EQ(recv_data.size(), num_localities);
         for (std::size_t s = 0; s != num_localities; ++s)
@@ -1976,6 +1976,10 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -2029,12 +2033,9 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
         recv_data = all_to_all(comm, std::move(iter_data),
             this_site_arg(this_locality), generation_arg(i + 1))
                         .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         // Correctness: recv_data[s][*] == s + this_locality + i
         HPX_TEST_EQ(recv_data.size(), num_localities);
         for (std::size_t s = 0; s != num_localities; ++s)
@@ -2050,6 +2051,10 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
 
     if (this_locality == 0)
     {
@@ -2184,12 +2189,9 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
                 num_sites_arg(num_localities), this_site_arg(this_locality),
                 generation_arg(i + 1));
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         // Check for correctness
         HPX_TEST_EQ(num_localities, recv_data.size());
         for (std::size_t j = 0; j != recv_data.size(); ++j)
@@ -2205,6 +2207,11 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
@@ -2249,12 +2256,9 @@ void test_multiple_use_with_generation_all_gather(int lpn,
             all_gather(all_gather_direct_client, std::move(iter_data),
                 generation_arg(i + 1));
         recv_data = ft_data.get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         // Check for correctness
         HPX_TEST_EQ(num_localities, recv_data.size());
         for (std::size_t j = 0; j != recv_data.size(); ++j)
@@ -2270,6 +2274,11 @@ void test_multiple_use_with_generation_all_gather(int lpn,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
@@ -2310,12 +2319,9 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
             num_sites_arg(num_localities), this_site_arg(this_locality),
             generation_arg(i + 1))
                         .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         int expected = 0;
         for (std::size_t j = 0; j < this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
@@ -2328,6 +2334,11 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
@@ -2372,12 +2383,9 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
             std::vector<int>(block_size, 0), vector_adder{},
             generation_arg(i + 1))
                         .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         int expected = 0;
         for (std::size_t j = 0; j < this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
@@ -2390,6 +2398,11 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
@@ -2428,12 +2441,9 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
             vector_adder{}, num_sites_arg(num_localities),
             this_site_arg(this_locality), generation_arg(i + 1))
                         .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         int expected = 0;
         for (std::size_t j = 0; j <= this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
@@ -2446,6 +2456,11 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
@@ -2489,12 +2504,9 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
         recv_data = inclusive_scan(inclusive_scan_client, std::move(value),
             vector_adder{}, generation_arg(i + 1))
                         .get();
-        // Reduce max elapsed time to root
-        double max_elapsed = timer.elapsed();
-        reduce(timing_comm, max_elapsed, double_max{},
-            this_site_arg(this_locality), generation_arg(i + 1));
+        double const elapsed = timer.elapsed();
         if (i >= warmup_iterations && i < warmup_iterations + iterations)
-            result[i - warmup_iterations] = max_elapsed;
+            result[i - warmup_iterations] = elapsed;
         int expected = 0;
         for (std::size_t j = 0; j <= this_locality; ++j)
             expected += static_cast<int>(j + 1 + i);
@@ -2507,6 +2519,11 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
             }
         }
     }
+
+    // Aggregate per-iteration maxima once, off the measured path.
+    reduce(timing_comm, result, vector_double_max{},
+        this_site_arg(this_locality), generation_arg(1));
+
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
