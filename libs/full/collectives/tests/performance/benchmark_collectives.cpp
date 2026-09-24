@@ -1029,7 +1029,7 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/scatter/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1112,7 +1112,7 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/reduce/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1190,7 +1190,7 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/broadcast/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1264,7 +1264,7 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/gather/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1344,7 +1344,7 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_reduce/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1414,7 +1414,7 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/scatter/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1500,7 +1500,7 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/reduce/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1581,7 +1581,7 @@ void test_multiple_use_with_generation_broadcast(int lpn,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/broadcast/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1657,7 +1657,7 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/gather/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1740,7 +1740,7 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_reduce/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -1976,7 +1976,7 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_to_all/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -2054,7 +2054,7 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_to_all/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -2219,7 +2219,7 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/single";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_gather/one_shot/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
@@ -2288,7 +2288,7 @@ void test_multiple_use_with_generation_all_gather(int lpn,
     // Barrier for synchronization
     char const* const barrier_test_name = "/test/barrier/generation";
     hpx::distributed::barrier barrier(barrier_test_name);
-    // Result vector
+    // Per-iteration times stay local; reduced once after the loop, off path.
     auto const timing_comm =
         create_communicator("/test/timing_reduce/all_gather/multi_use/",
             num_sites_arg(num_localities), this_site_arg(this_locality));
