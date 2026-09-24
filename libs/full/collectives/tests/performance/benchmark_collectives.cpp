@@ -2701,9 +2701,11 @@ int main(int argc, char* argv[])
             "all_to_all exchanges rows directly between sites. -1 uses the "
             "library default. Set to 0 to force the direct exchange. Only "
             "meaningful with --operation=all_to_all and --arity=-1.")
-        ("skip_one_shot", bool_switch(),
+        ("skip_one_shot",
+            value<bool>()->implicit_value(true)->default_value(false),
             "Skip the one-shot (single_use) benchmark when --arity=-1, "
-            "running only the multi_use benchmark.");
+            "running only the multi_use benchmark. Accepts a bare "
+            "--skip_one_shot or an explicit --skip_one_shot=true/false.");
     // clang-format on
 
     std::vector<std::string> const cfg = {"hpx.run_hpx_main!=1"};
