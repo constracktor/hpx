@@ -363,7 +363,8 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -464,7 +465,8 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -559,7 +561,8 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -661,7 +664,8 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -748,7 +752,8 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -841,7 +846,8 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -938,7 +944,8 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1002,7 +1009,8 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1086,7 +1094,8 @@ void test_one_shot_use_scatter(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1163,7 +1172,8 @@ void test_one_shot_use_reduce(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1236,7 +1246,8 @@ void test_one_shot_use_broadcast(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1315,7 +1326,8 @@ void test_one_shot_use_gather(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1378,7 +1390,8 @@ void test_one_shot_use_all_reduce(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1465,7 +1478,8 @@ void test_multiple_use_with_generation_scatter(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1544,7 +1558,8 @@ void test_multiple_use_with_generation_reduce(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1620,7 +1635,8 @@ void test_multiple_use_with_generation_broadcast(int lpn,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1701,7 +1717,8 @@ void test_multiple_use_with_generation_gather(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1768,7 +1785,8 @@ void test_multiple_use_with_generation_all_reduce(int lpn,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1811,7 +1829,8 @@ void test_one_shot_use_barrier(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1852,7 +1871,8 @@ void test_multiple_use_with_generation_barrier(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -1938,7 +1958,8 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -2011,7 +2032,8 @@ void test_one_shot_use_all_to_all(int lpn, std::size_t iterations,
             "single_use" :
             "single_use_p" + std::to_string(pairwise_threshold_option);
         write_to_file(operation, mod_name, -1, num_localities, lpn, test_size,
-            warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -2083,7 +2105,8 @@ void test_multiple_use_with_generation_all_to_all(int lpn,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 
@@ -2178,7 +2201,8 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
             std::string("hierarchical") :
             "hierarchical_t" + std::to_string(fallback_threshold);
         write_to_file(operation, mod_name, arity, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2241,7 +2265,8 @@ void test_one_shot_use_all_gather(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2308,7 +2333,8 @@ void test_multiple_use_with_generation_all_gather(int lpn,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2368,7 +2394,8 @@ void test_one_shot_use_exclusive_scan(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2432,7 +2459,8 @@ void test_multiple_use_with_generation_exclusive_scan(int lpn,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
@@ -2490,7 +2518,8 @@ void test_one_shot_use_inclusive_scan(int lpn, std::size_t iterations,
     if (this_locality == 0)
     {
         write_to_file(operation, "single_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2553,7 +2582,8 @@ void test_multiple_use_with_generation_inclusive_scan(int lpn,
     if (this_locality == 0)
     {
         write_to_file(operation, "multi_use", -1, num_localities, lpn,
-            test_size, warmup_iterations, cooldown_iterations, iterations, std::move(result));
+            test_size, warmup_iterations, cooldown_iterations, iterations,
+            std::move(result));
     }
 }
 struct benchmarking_functions
