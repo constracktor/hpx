@@ -191,7 +191,7 @@ void write_to_file(std::string const& collective, std::string const& type,
                       "HPX threads:       {7}\n"
                       "Size/Locality:     {8}\n"
                       "Warmup iterations: {9}\n"
-                      "Cooldown iterations: {10}\n"
+                      "Cooldown:          {10}\n"
                       "Iterations:        {11}\n"
                       "Mean runtime:      {12}\n"
                       "Variance:          {13}\n"
