@@ -118,15 +118,16 @@ struct vector_adder
 
 void create_parent_dir(std::filesystem::path const& file_path)
 {
-    // Create parent directory if it does not exist
+    // Create parent directory if it does not exist. is_directory() (rather
+    // than exists()) also catches a regular file occupying the path.
     std::filesystem::path const dir_path = file_path.parent_path();
-    if (dir_path.empty() || std::filesystem::exists(dir_path))
+    if (dir_path.empty() || std::filesystem::is_directory(dir_path))
     {
         return;
     }
     std::error_code ec;
     if (!std::filesystem::create_directories(dir_path, ec) &&
-        !std::filesystem::exists(dir_path))
+        !std::filesystem::is_directory(dir_path))
     {
         // create_directories() also returns false when another process won
         // the race and created the directory first; only a genuine failure
@@ -231,7 +232,9 @@ void write_to_file(std::string const& collective, std::string const& type,
         "threads;size;warmup;cooldown;iterations;mean;variance;stddev;min;max;"
         "median\n";
     // Write the header only once, when the file is new or empty. Peeking for
-    // EOF avoids reading the whole results file on every append.
+    // EOF avoids reading the whole results file on every append. This does
+    // not detect (or repair) a non-empty file left over without a header by
+    // an older build of this benchmark.
     bool need_header = true;
     if (std::ifstream in{runtime_file_path}; in.good())
     {
