@@ -232,13 +232,26 @@ void write_to_file(std::string const& collective, std::string const& type,
         "threads;size;warmup;cooldown;iterations;mean;variance;stddev;min;max;"
         "median\n";
     // Write the header only once, when the file is new or empty. Peeking for
-    // EOF avoids reading the whole results file on every append. This does
-    // not detect (or repair) a non-empty file left over without a header by
-    // an older build of this benchmark.
+    // EOF avoids reading the whole results file on every append. When the
+    // file already has content, its first line is checked against the
+    // current header so a schema change (e.g. an added column) from an
+    // older build is flagged instead of silently misaligning columns.
     bool need_header = true;
     if (std::ifstream in{runtime_file_path}; in.good())
     {
         need_header = (in.peek() == std::ifstream::traits_type::eof());
+        if (!need_header)
+        {
+            std::string existing_header;
+            std::getline(in, existing_header);
+            if (existing_header + "\n" != header)
+            {
+                std::cerr << "WARNING: " << runtime_file_path
+                          << " has a different column layout than this "
+                             "build produces (likely from an older build); "
+                             "appending anyway.\n";
+            }
+        }
     }
 
     // Add runtimes
