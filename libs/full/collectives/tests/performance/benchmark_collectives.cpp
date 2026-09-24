@@ -2675,7 +2675,7 @@ int main(int argc, char* argv[])
             "all_to_all exchanges rows directly between sites. -1 uses the "
             "library default. Set to 0 to force the direct exchange. Only "
             "meaningful with --operation=all_to_all and --arity=-1.")
-        ("skip_one_shot", value<bool>()->default_value(false),
+        ("skip_one_shot", bool_switch(),
             "Skip the one-shot (single_use) benchmark when --arity=-1, "
             "running only the multi_use benchmark.");
     // clang-format on
