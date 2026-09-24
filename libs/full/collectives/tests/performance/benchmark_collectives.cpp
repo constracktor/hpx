@@ -278,9 +278,11 @@ void test_scatter_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/scatter/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -381,9 +383,11 @@ void test_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/reduce/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -480,9 +484,11 @@ void test_broadcast_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/broadcast/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -573,9 +579,11 @@ void test_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/gather/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -673,9 +681,11 @@ void test_all_reduce_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/all_reduce/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -759,9 +769,11 @@ void test_inclusive_scan_hierarchical(int arity, int lpn,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/inclusive_scan/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -850,9 +862,11 @@ void test_exclusive_scan_hierarchical(int arity, int lpn,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/exclusive_scan/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -941,9 +955,11 @@ void test_barrier_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/barrier/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -1856,9 +1872,11 @@ void test_all_gather_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/all_gather/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
@@ -2085,9 +2103,11 @@ void test_all_to_all_hierarchical(int arity, int lpn, std::size_t iterations,
                 flat_fallback_threshold_arg() :
                 flat_fallback_threshold_arg(
                     static_cast<std::size_t>(fallback_threshold)));
-    // Hierarchical sync, own communicator (avoids colliding with the tested
-    // collective's generations). A flat sync would let idle sites flood
-    // locality 0 while it's still walking its own tree.
+    // Sync communicator with the same arity/fallback_threshold as the tested
+    // one, so it's hierarchical exactly when that one is (own communicator
+    // avoids colliding with the tested collective's generations). A flat
+    // sync here would let idle sites flood locality 0 while it's still
+    // walking its own tree.
     auto const sync_communicators = create_hierarchical_communicator(
         "/test/sync_barrier/all_to_all/hierarchical/",
         num_sites_arg(num_localities), this_site_arg(this_locality),
