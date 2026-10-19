@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <exception>
 #include <limits>
+#include <algorithm>
+#include <cstddef>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -47,26 +49,72 @@ namespace hpx::collectives::detail {
         hierarchical_communicator const& communicators, this_site_arg this_site,
         char const* operation);
 
-    // The tree hardcodes site 0 as the root at every level, so the root-side
-    // entry points (broadcast_to, gather_here, reduce_here, scatter_to) may
-    // only be called from site 0, and the non-root entry points only from the
-    // other sites. `root_operation` names the root-side operation for the
-    // resulting error message.
+    // The tree is rooted at the communicator's root site (relabelled to be
+    // site 0 of the tree), so the root-side entry points (broadcast_to,
+    // gather_here, reduce_here, scatter_to) may only be called from the root
+    // site, and the non-root entry points only from the other sites. Both take
+    // the site's position in the tree (hierarchical_communicator::
+    // get_virtual_site()), where the root is 0. `root_operation` names the
+    // root-side operation for the resulting error message.
     [[nodiscard]] HPX_EXPORT std::exception_ptr
-    validate_hierarchical_root_caller(this_site_arg this_site,
+    validate_hierarchical_root_caller(this_site_arg virtual_site,
         char const* operation, char const* root_operation);
 
     [[nodiscard]] HPX_EXPORT std::exception_ptr
-    validate_hierarchical_non_root_caller(this_site_arg this_site,
+    validate_hierarchical_non_root_caller(this_site_arg virtual_site,
         char const* operation, char const* root_operation);
 
-    // A non-zero root site is not supported by any of the hierarchical
-    // implementations (the tree designates site 0 as the root).
-    // `operation_name` is the plain operation name (e.g. "barrier") used in
-    // the resulting error message.
+    // The composite operations take a root_site argument for symmetry with
+    // the flat ones. It may be left at its default or must name the root site
+    // the communicator was created with. `operation_name` is the plain
+    // operation name (e.g. "barrier") used in the resulting error message.
     [[nodiscard]] HPX_EXPORT std::exception_ptr validate_hierarchical_root_site(
+        hierarchical_communicator const& communicators,
         root_site_arg root_site, char const* operation,
         char const* operation_name);
+
+    // The tree runs over relabelled sites (the root becomes site 0), so a
+    // vector holding one entry per site is in tree order, i.e. rotated left by
+    // the root site relative to the actual site order. These convert between
+    // the two orders; a root site of 0 is the identity.
+    // Moves the elements into a new vector rather than rotating in place so
+    // that element types that are not assignable work as well.
+    template <typename T>
+    void rotate_sites_left(std::vector<T>& values, std::size_t const shift)
+    {
+        if (values.empty() || shift % values.size() == 0)
+        {
+            return;
+        }
+
+        std::size_t const n = values.size();
+        std::size_t const first = shift % n;
+
+        std::vector<T> rotated;
+        rotated.reserve(n);
+        for (std::size_t i = 0; i != n; ++i)
+        {
+            rotated.emplace_back(HPX_MOVE(values[(first + i) % n]));
+        }
+        values = HPX_MOVE(rotated);
+    }
+
+    template <typename T>
+    void rotate_sites_to_tree_order(
+        std::vector<T>& values, std::size_t root_site)
+    {
+        rotate_sites_left(values, root_site);
+    }
+
+    template <typename T>
+    void rotate_sites_to_site_order(
+        std::vector<T>& values, std::size_t root_site)
+    {
+        if (!values.empty())
+        {
+            rotate_sites_left(values, values.size() - root_site % values.size());
+        }
+    }
 
     template <typename ValueType, typename Data>
     constexpr decltype(auto) handle_bool(Data&& data) noexcept

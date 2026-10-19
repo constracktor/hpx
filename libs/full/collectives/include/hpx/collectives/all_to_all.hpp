@@ -854,6 +854,13 @@ namespace hpx::collectives {
             return hpx::make_exceptional_future<std::vector<T>>(error);
         }
 
+        // The tree runs over relabelled sites (the root becomes site 0):
+        // contributions go in as destinations in tree order, results come
+        // back from sources in tree order. Convert at both ends so callers
+        // keep seeing actual site numbers.
+        std::size_t const root_site = communicators.get_root_site();
+        this_site = communicators.get_virtual_site();
+
         std::size_t const num_sites_val = hpx::get<0>(communicators.get_info());
         std::size_t const arity_val = communicators.get_arity();
 
@@ -868,6 +875,18 @@ namespace hpx::collectives {
                     "each participating site must contribute exactly "
                     "num_sites elements"));
         }
+
+        detail::rotate_sites_to_tree_order(local_result, root_site);
+
+        // (make_future would drop the conversion, the types are equal.)
+        auto const to_site_order = [root_site](hpx::future<std::vector<T>>&& f) {
+            return f.then(
+                hpx::launch::sync, [root_site](hpx::future<std::vector<T>>&& r) {
+                    auto values = r.get();
+                    detail::rotate_sites_to_site_order(values, root_site);
+                    return values;
+                });
+        };
 
         // Generation mapping: every communicator advances two generations per
         // call and must see consecutive generation numbers starting from 1 (the
@@ -895,9 +914,9 @@ namespace hpx::collectives {
         if (arity_val >= num_sites_val)
         {
             HPX_ASSERT(communicators.size() == 1);
-            return detail::all_to_all(communicators.get(0),
+            return to_site_order(detail::all_to_all(communicators.get(0),
                 HPX_MOVE(local_result), communicators.site(0), first_gen,
-                detail::generation_mode::double_step);
+                detail::generation_mode::double_step));
         }
 
         std::ptrdiff_t const gidx =
@@ -931,8 +950,8 @@ namespace hpx::collectives {
 
             detail::ragged_rows<T> received = received_future.get();
 
-            return detail::subtree_scatter_at_top_rep(communicators,
-                HPX_MOVE(exchange).transpose(HPX_MOVE(received)), second_gen);
+            return to_site_order(detail::subtree_scatter_at_top_rep(communicators,
+                HPX_MOVE(exchange).transpose(HPX_MOVE(received)), second_gen));
         }
         else
         {
@@ -941,8 +960,8 @@ namespace hpx::collectives {
             detail::subtree_send_to_top_rep(
                 communicators, HPX_MOVE(local_result), first_gen);
 
-            return detail::subtree_receive_from_top_rep<T>(
-                communicators, second_gen);
+            return to_site_order(detail::subtree_receive_from_top_rep<T>(
+                communicators, second_gen));
         }
     }
 }    // namespace hpx::collectives

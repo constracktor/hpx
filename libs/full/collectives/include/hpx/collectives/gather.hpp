@@ -590,6 +590,10 @@ namespace hpx::collectives {
                     std::vector<std::decay_t<T>>>(error);
             }
 
+            // From here on the site is its position in the tree, where the root
+            // is site 0.
+            this_site = communicators.get_virtual_site();
+
             if (auto const error = validate_hierarchical_root_caller(this_site,
                     "hpx::collectives::gather_here (hierarchical)",
                     "gather_here"))
@@ -625,8 +629,13 @@ namespace hpx::collectives {
             return hpx::make_future<std::vector<value_type>>(
                 gather_here_impl<uniform_rows<value_type>>(communicators.get(0),
                     HPX_MOVE(result), this_site_arg(0), run_gen, run_step),
-                [](uniform_rows<value_type>&& data) {
-                    return HPX_MOVE(data).unwrap_values();
+                [root = static_cast<std::size_t>(
+                     communicators.get_root_site())](
+                    uniform_rows<value_type>&& data) {
+                    // The tree gathers in tree order, hand out site order.
+                    auto values = HPX_MOVE(data).unwrap_values();
+                    rotate_sites_to_site_order(values, root);
+                    return values;
                 });
         }
     }    // namespace detail
@@ -783,6 +792,10 @@ namespace hpx::collectives {
             {
                 return hpx::make_exceptional_future<void>(error);
             }
+
+            // From here on the site is its position in the tree, where the root
+            // is site 0.
+            this_site = communicators.get_virtual_site();
 
             if (auto const error = validate_hierarchical_non_root_caller(
                     this_site, "hpx::collectives::gather_there (hierarchical)",

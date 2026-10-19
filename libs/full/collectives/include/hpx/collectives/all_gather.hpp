@@ -462,7 +462,8 @@ namespace hpx::collectives {
         std::size_t const arity_val = communicators.get_arity();
 
         if (auto const error = detail::validate_hierarchical_root_site(
-                root_site, "hpx::collectives::all_gather (hierarchical)",
+                communicators, root_site,
+                "hpx::collectives::all_gather (hierarchical)",
                 "all_gather"))
         {
             return hpx::make_exceptional_future<std::vector<arg_type>>(error);
@@ -482,12 +483,22 @@ namespace hpx::collectives {
         if (arity_val >= num_sites_val)
         {
             HPX_ASSERT(communicators.size() == 1);
+            // The flat communicator runs in tree order, hand out site order.
+            // (make_future would drop the conversion, the types are equal.)
             return detail::all_gather(communicators.get(0),
                 HPX_FORWARD(T, local_result), communicators.site(0), gather_gen,
-                detail::generation_mode::double_step);
+                detail::generation_mode::double_step)
+                .then(hpx::launch::sync,
+                    [root = static_cast<std::size_t>(
+                         communicators.get_root_site())](
+                        hpx::future<std::vector<arg_type>>&& f) {
+                        auto values = f.get();
+                        detail::rotate_sites_to_site_order(values, root);
+                        return values;
+                    });
         }
 
-        if (this_site == root_site)
+        if (this_site == communicators.get_root_site())
         {
             // gather phase advances each communicator by one (the broadcast
             // phase consumes 2k), so pass single_step.

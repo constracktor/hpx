@@ -555,14 +555,6 @@ namespace hpx::collectives {
         {
             root_site = 0;
         }
-        if (root_site != 0)
-        {
-            HPX_THROW_EXCEPTION(hpx::error::bad_parameter,
-                "hpx::collectives::create_hierarchical_communicator",
-                "hierarchical communicators currently support only "
-                "root_site == 0");
-        }
-
         validate_communicator_arguments(num_sites, this_site, root_site,
             "hpx::collectives::create_hierarchical_communicator");
 
@@ -591,9 +583,15 @@ namespace hpx::collectives {
             arity = static_cast<std::size_t>(num_sites);
         }
 
+        // The tree always has site 0 at its top. Rooting it at another site
+        // relabels the sites such that the root becomes site 0, which every
+        // participating site does consistently.
+        std::size_t const virtual_site =
+            (this_site + num_sites - root_site) % num_sites;
+
         std::vector<hpx::tuple<communicator, this_site_arg>> communicators;
         recursively_fill_communicators(communicators, 0, num_sites - 1, name,
-            arity, this_site, generation);
+            arity, this_site_arg(virtual_site), generation);
         return hierarchical_communicator(
             HPX_MOVE(communicators), arity, root_site, num_sites, this_site);
     }

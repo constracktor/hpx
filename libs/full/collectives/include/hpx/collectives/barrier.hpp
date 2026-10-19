@@ -271,8 +271,9 @@ namespace hpx::collectives {
         }
 
         if (auto const error =
-                detail::validate_hierarchical_root_site(root_site,
-                    "hpx::collectives::barrier (hierarchical)", "barrier"))
+                detail::validate_hierarchical_root_site(communicators,
+                    root_site, "hpx::collectives::barrier (hierarchical)",
+                    "barrier"))
         {
             return hpx::make_exceptional_future<void>(error);
         }

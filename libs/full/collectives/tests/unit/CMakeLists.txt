@@ -25,6 +25,7 @@ set(tests
     fold
     global_spmd_block
     hierarchical_helpers
+    hierarchical_rotating_root
     pairwise_all_to_all
     reduce_direct
     remote_latch

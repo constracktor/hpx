@@ -687,6 +687,10 @@ namespace hpx::collectives {
                 return hpx::make_exceptional_future<T>(error);
             }
 
+            // From here on the site is its position in the tree, where the root
+            // is site 0.
+            this_site = communicators.get_virtual_site();
+
             if (auto const error = validate_hierarchical_non_root_caller(
                     this_site, "hpx::collectives::scatter_from (hierarchical)",
                     "scatter_to"))
@@ -949,6 +953,10 @@ namespace hpx::collectives {
                 return hpx::make_exceptional_future<T>(error);
             }
 
+            // From here on the site is its position in the tree, where the root
+            // is site 0.
+            this_site = communicators.get_virtual_site();
+
             std::size_t const num_sites_val =
                 hpx::get<0>(communicators.get_info());
 
@@ -980,6 +988,11 @@ namespace hpx::collectives {
 
             auto const [run_gen, run_step] =
                 hierarchical_run_params(generation, num_generations);
+
+            // The values are indexed by site, the tree distributes them in
+            // tree order.
+            rotate_sites_to_tree_order(
+                local_result, communicators.get_root_site());
 
             auto [current_communicator, current_site] = communicators[0];
             if (communicators.size() == 1)

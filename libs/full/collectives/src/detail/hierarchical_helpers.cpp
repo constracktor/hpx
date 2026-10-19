@@ -65,14 +65,14 @@ namespace hpx::collectives::detail {
     }
 
     std::exception_ptr validate_hierarchical_root_caller(
-        this_site_arg const this_site, char const* operation,
+        this_site_arg const virtual_site, char const* operation,
         char const* root_operation)
     {
-        if (this_site != 0)
+        if (virtual_site != 0)
         {
             return HPX_GET_EXCEPTION(hpx::error::bad_parameter, operation,
                 hpx::util::format(
-                    "only site 0 may call {} on a hierarchical communicator",
+                    "only the root site may call {} on a hierarchical communicator",
                     root_operation));
         }
 
@@ -80,14 +80,14 @@ namespace hpx::collectives::detail {
     }
 
     std::exception_ptr validate_hierarchical_non_root_caller(
-        this_site_arg const this_site, char const* operation,
+        this_site_arg const virtual_site, char const* operation,
         char const* root_operation)
     {
-        if (this_site == 0)
+        if (virtual_site == 0)
         {
             return HPX_GET_EXCEPTION(hpx::error::bad_parameter, operation,
                 hpx::util::format(
-                    "site 0 must call {} on a hierarchical communicator",
+                    "the root site must call {} on a hierarchical communicator",
                     root_operation));
         }
 
@@ -95,18 +95,21 @@ namespace hpx::collectives::detail {
     }
 
     std::exception_ptr validate_hierarchical_root_site(
+        hierarchical_communicator const& communicators,
         root_site_arg const root_site, char const* operation,
         char const* operation_name)
     {
-        // The hierarchical helpers hardcode site 0 as the local root at
-        // every tree level, so a non-zero root is not supported.
-        if (root_site != 0)
+        // The default (0) is accepted so callers that never named a root keep
+        // working; anything else must be the root the tree was built with.
+        if (!root_site.is_default() &&
+            root_site != communicators.get_root_site())
         {
             return HPX_GET_EXCEPTION(hpx::error::bad_parameter, operation,
                 hpx::util::format(
-                    "hierarchical {} currently supports only root_site == 0 "
-                    "(the tree designates site 0 as the root)",
-                    operation_name));
+                    "hierarchical {} must use the root site the communicator "
+                    "was created with ({})",
+                    operation_name,
+                    static_cast<std::size_t>(communicators.get_root_site())));
         }
 
         return std::exception_ptr();

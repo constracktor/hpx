@@ -54,7 +54,8 @@ namespace hpx::collectives::detail {
         this_site_arg const effective_site = resolve_this_site(this_site);
 
         if (auto const error =
-                validate_hierarchical_root_site(root_site, operation, "scan"))
+                validate_hierarchical_root_site(
+                    communicators, root_site, operation, "scan"))
         {
             return hpx::make_exceptional_future<Result>(error);
         }
@@ -71,7 +72,11 @@ namespace hpx::collectives::detail {
         auto const [gather_gen, scatter_gen] =
             hierarchical_phase_generations(generation);
 
-        if (arity >= num_sites)
+        // The flat communicator runs in tree order, which only matches the
+        // site order the scan runs over if the root is site 0. Otherwise the
+        // gather/scatter path below hands the values out in site order.
+        std::size_t const root = communicators.get_root_site();
+        if (arity >= num_sites && root == 0)
         {
             HPX_ASSERT(communicators.size() == 1);
             return HPX_FORWARD(FlatScan, flat_scan)(communicators.get(0),
@@ -79,7 +84,7 @@ namespace hpx::collectives::detail {
                 gather_gen);
         }
 
-        if (effective_site == root_site)
+        if (effective_site == root)
         {
             std::vector<Result> gathered = detail::gather_here(communicators,
                 HPX_FORWARD(T, local_result), effective_site, gather_gen,

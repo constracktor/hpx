@@ -567,6 +567,10 @@ namespace hpx::collectives {
                 return hpx::make_exceptional_future<std::decay_t<T>>(error);
             }
 
+            // From here on the site is its position in the tree, where the root
+            // is site 0.
+            this_site = communicators.get_virtual_site();
+
             if (auto const error = validate_hierarchical_root_caller(this_site,
                     "hpx::collectives::broadcast_to (hierarchical)",
                     "broadcast_to"))
@@ -752,6 +756,10 @@ namespace hpx::collectives {
             {
                 return hpx::make_exceptional_future<T>(error);
             }
+
+            // From here on the site is its position in the tree, where the root
+            // is site 0.
+            this_site = communicators.get_virtual_site();
 
             if (auto const error =
                     validate_hierarchical_non_root_caller(this_site,

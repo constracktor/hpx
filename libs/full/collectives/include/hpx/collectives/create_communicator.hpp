@@ -144,10 +144,19 @@ namespace hpx { namespace collectives {
     ///                     given base name. This is optional and needs to be
     ///                     supplied only if the collective operation on the
     ///                     given base name has to be performed more than once.
-    /// \param  root_site   The site that is responsible for creating the
-    ///                     collective support object. Hierarchical
-    ///                     communicators currently support only site 0 as the
-    ///                     root, which is also the default.
+    /// \param  root_site   The site at the root of the tree of
+    ///                     communicators (default: 0). Any site may serve as
+    ///                     the root, which moves the load of the top of the
+    ///                     tree to that site. All sites must pass the same
+    ///                     root site. The root site is the only site that may
+    ///                     call the root-side operations (broadcast_to,
+    ///                     gather_here, reduce_here, scatter_to). Per-site
+    ///                     vectors (gather_here, scatter_to, all_gather,
+    ///                     all_to_all) always remain indexed by the actual
+    ///                     site numbers, and the scans keep their site order.
+    ///                     Reduction operations see their operands starting
+    ///                     at the root site, so a non-commutative operation
+    ///                     must account for that when the root is not 0.
     /// \param  threshold   The site-count threshold below which the
     ///                     communicator collapses to a single flat
     ///                     communicator spanning all sites (strict
@@ -194,8 +203,8 @@ namespace hpx { namespace collectives {
     /// \throws hpx::exception with hpx::error::bad_parameter if \a basename
     ///         is null or empty, if the (resolved) \a num_sites is zero, if
     ///         the (resolved) \a this_site is not smaller than \a num_sites,
-    ///         if the (resolved) \a root_site is not zero, or if \a arity is
-    ///         smaller than 2.
+    ///         if the (resolved) \a root_site is not smaller than \a
+    ///         num_sites, or if \a arity is smaller than 2.
     ///
     hierarchical_communicator create_hierarchical_communicator(
         char const* basename,
@@ -446,6 +455,22 @@ namespace hpx::collectives {
         [[nodiscard]] constexpr arity_arg get_arity() const noexcept
         {
             return arity;
+        }
+
+        // The site at the root of the tree (the site rooting the operations
+        // that have a distinguished root, e.g. broadcast_to or gather_here).
+        [[nodiscard]] constexpr root_site_arg get_root_site() const noexcept
+        {
+            return root_site;
+        }
+
+        // The position of this site in the tree: the tree is built over the
+        // sites relabelled such that the root becomes site 0, i.e.
+        // (this_site - root_site) mod num_sites.
+        [[nodiscard]] constexpr this_site_arg get_virtual_site() const noexcept
+        {
+            return this_site_arg(
+                (this_site + num_sites - root_site) % num_sites);
         }
 
         [[nodiscard]] HPX_EXPORT
