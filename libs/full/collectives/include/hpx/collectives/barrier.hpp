@@ -270,10 +270,9 @@ namespace hpx::collectives {
             this_site = agas::get_locality_id();
         }
 
-        if (auto const error =
-                detail::validate_hierarchical_root_site(communicators,
-                    root_site, "hpx::collectives::barrier (hierarchical)",
-                    "barrier"))
+        if (auto const error = detail::validate_hierarchical_root_site(
+                communicators, root_site,
+                "hpx::collectives::barrier (hierarchical)", "barrier"))
         {
             return hpx::make_exceptional_future<void>(error);
         }

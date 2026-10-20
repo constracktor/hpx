@@ -53,9 +53,8 @@ namespace hpx::collectives::detail {
 
         this_site_arg const effective_site = resolve_this_site(this_site);
 
-        if (auto const error =
-                validate_hierarchical_root_site(
-                    communicators, root_site, operation, "scan"))
+        if (auto const error = validate_hierarchical_root_site(
+                communicators, root_site, operation, "scan"))
         {
             return hpx::make_exceptional_future<Result>(error);
         }

@@ -71,8 +71,8 @@ namespace hpx::collectives::detail {
         if (virtual_site != 0)
         {
             return HPX_GET_EXCEPTION(hpx::error::bad_parameter, operation,
-                hpx::util::format(
-                    "only the root site may call {} on a hierarchical communicator",
+                hpx::util::format("only the root site may call {} on a "
+                                  "hierarchical communicator",
                     root_operation));
         }
 

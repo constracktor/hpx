@@ -160,7 +160,7 @@ void test_invalid_hierarchical_arguments_rejected()
         this_site_arg(0), arity_arg(2), generation_arg(), root_site_arg(),
         flat_fallback_threshold_arg(0));
 
-    bool nonzero_root_rejected = false;
+    bool mismatched_root_rejected = false;
     try
     {
         hpx::collectives::barrier(hpx::launch::sync, barrier_clients,
@@ -168,10 +168,10 @@ void test_invalid_hierarchical_arguments_rejected()
     }
     catch (hpx::exception const& e)
     {
-        nonzero_root_rejected = true;
+        mismatched_root_rejected = true;
         HPX_TEST_EQ(e.get_error(), hpx::error::bad_parameter);
     }
-    HPX_TEST(nonzero_root_rejected);
+    HPX_TEST(mismatched_root_rejected);
 
     bool mismatched_site_rejected = false;
     try

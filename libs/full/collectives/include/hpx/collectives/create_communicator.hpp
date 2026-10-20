@@ -155,8 +155,14 @@ namespace hpx { namespace collectives {
     ///                     all_to_all) always remain indexed by the actual
     ///                     site numbers, and the scans keep their site order.
     ///                     Reduction operations see their operands starting
-    ///                     at the root site, so a non-commutative operation
-    ///                     must account for that when the root is not 0.
+    ///                     at the root site, so the reduction operation must
+    ///                     be associative and commutative when the root is not
+    ///                     0. Communicators on the same base name must all use
+    ///                     the same root; use a distinct base name for each
+    ///                     root. In the composite operations (all_gather,
+    ///                     all_reduce, all_to_all, barrier, scans) the
+    ///                     \a root_site argument must be the default or equal
+    ///                     to the root of the communicator.
     /// \param  threshold   The site-count threshold below which the
     ///                     communicator collapses to a single flat
     ///                     communicator spanning all sites (strict

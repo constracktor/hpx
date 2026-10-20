@@ -879,9 +879,10 @@ namespace hpx::collectives {
         detail::rotate_sites_to_tree_order(local_result, root_site);
 
         // (make_future would drop the conversion, the types are equal.)
-        auto const to_site_order = [root_site](hpx::future<std::vector<T>>&& f) {
-            return f.then(
-                hpx::launch::sync, [root_site](hpx::future<std::vector<T>>&& r) {
+        auto const to_site_order = [root_site](
+                                       hpx::future<std::vector<T>>&& f) {
+            return f.then(hpx::launch::sync,
+                [root_site](hpx::future<std::vector<T>>&& r) {
                     auto values = r.get();
                     detail::rotate_sites_to_site_order(values, root_site);
                     return values;
@@ -950,8 +951,9 @@ namespace hpx::collectives {
 
             detail::ragged_rows<T> received = received_future.get();
 
-            return to_site_order(detail::subtree_scatter_at_top_rep(communicators,
-                HPX_MOVE(exchange).transpose(HPX_MOVE(received)), second_gen));
+            return to_site_order(detail::subtree_scatter_at_top_rep(
+                communicators, HPX_MOVE(exchange).transpose(HPX_MOVE(received)),
+                second_gen));
         }
         else
         {

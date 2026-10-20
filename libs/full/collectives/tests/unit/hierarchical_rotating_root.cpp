@@ -182,9 +182,9 @@ void run_site(std::string const& basename, std::uint32_t const num_sites,
         // scans follow the actual site order, not the tree order
         {
             ++gen;
-            u32 const got = inclusive_scan(hpx::launch::sync, comms,
-                u32(site + 1 + i), std::plus<u32>{}, this_site_arg(site),
-                generation_arg(gen));
+            u32 const got =
+                inclusive_scan(hpx::launch::sync, comms, u32(site + 1 + i),
+                    std::plus<u32>{}, this_site_arg(site), generation_arg(gen));
             u32 expected = 0;
             for (u32 j = 0; j <= site; ++j)
             {
@@ -309,12 +309,56 @@ void test_root_caller_rejected()
     HPX_TEST(rejected);
 }
 
+// Communicators with different roots may share a base name, and a composite
+// operation must be given the root of its communicator.
+void test_shared_basename_and_root_mismatch()
+{
+    constexpr std::uint32_t num_sites = 4;
+
+    std::vector<hpx::future<void>> sites;
+    for (std::uint32_t site = 0; site != num_sites; ++site)
+    {
+        sites.push_back(hpx::async([=]() {
+            for (std::uint32_t root : {1u, 2u})
+            {
+                auto const comms = create_hierarchical_communicator(
+                    "/test/rotating_root/shared/", num_sites_arg(num_sites),
+                    this_site_arg(site), arity_arg(2), generation_arg(),
+                    root_site_arg(root), flat_fallback_threshold_arg(0));
+                HPX_TEST_EQ(static_cast<std::size_t>(comms.get_root_site()),
+                    static_cast<std::size_t>(root));
+
+                // the operation's root must match the communicator's root
+                bool rejected = false;
+                try
+                {
+                    barrier(hpx::launch::sync, comms, this_site_arg(site),
+                        generation_arg(1), root_site_arg(root + 1));
+                }
+                catch (hpx::exception const&)
+                {
+                    rejected = true;
+                }
+                HPX_TEST(rejected);
+
+                barrier(hpx::launch::sync, comms, this_site_arg(site),
+                    generation_arg(1), root_site_arg(root));
+            }
+        }));
+    }
+    hpx::wait_all(sites);
+    for (auto& f : sites)
+    {
+        f.get();
+    }
+}
+
 int hpx_main()
 {
     // All sites are simulated by tasks of this one process.
     if (hpx::get_locality_id() == 0)
     {
-        for (std::uint32_t num_sites : {2u, 3u, 5u, 8u, 11u})
+        for (std::uint32_t num_sites : {1u, 2u, 3u, 5u, 8u, 11u})
         {
             // a real tree of arity 2 and 3, then the flat fallback
             test_roots(num_sites, 2, 0);
@@ -323,6 +367,7 @@ int hpx_main()
         }
 
         test_root_caller_rejected();
+        test_shared_basename_and_root_mismatch();
     }
 
     return hpx::finalize();

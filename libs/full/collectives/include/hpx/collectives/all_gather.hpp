@@ -463,8 +463,7 @@ namespace hpx::collectives {
 
         if (auto const error = detail::validate_hierarchical_root_site(
                 communicators, root_site,
-                "hpx::collectives::all_gather (hierarchical)",
-                "all_gather"))
+                "hpx::collectives::all_gather (hierarchical)", "all_gather"))
         {
             return hpx::make_exceptional_future<std::vector<arg_type>>(error);
         }

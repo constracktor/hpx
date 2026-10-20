@@ -17,8 +17,6 @@
 #include <cstddef>
 #include <exception>
 #include <limits>
-#include <algorithm>
-#include <cstddef>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -69,9 +67,8 @@ namespace hpx::collectives::detail {
     // the communicator was created with. `operation_name` is the plain
     // operation name (e.g. "barrier") used in the resulting error message.
     [[nodiscard]] HPX_EXPORT std::exception_ptr validate_hierarchical_root_site(
-        hierarchical_communicator const& communicators,
-        root_site_arg root_site, char const* operation,
-        char const* operation_name);
+        hierarchical_communicator const& communicators, root_site_arg root_site,
+        char const* operation, char const* operation_name);
 
     // The tree runs over relabelled sites (the root becomes site 0), so a
     // vector holding one entry per site is in tree order, i.e. rotated left by
@@ -112,7 +109,8 @@ namespace hpx::collectives::detail {
     {
         if (!values.empty())
         {
-            rotate_sites_left(values, values.size() - root_site % values.size());
+            rotate_sites_left(
+                values, values.size() - root_site % values.size());
         }
     }
 

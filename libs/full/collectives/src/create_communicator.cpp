@@ -566,6 +566,11 @@ namespace hpx::collectives {
         }
 
         std::string name(basename);
+        if (root_site != 0)
+        {
+            // communicators with different roots must not share names
+            name += "root" + std::to_string(root_site) + "/";
+        }
         if (!generation.is_default())
         {
             name += std::to_string(generation) + "/";
