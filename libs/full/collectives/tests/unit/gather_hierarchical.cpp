@@ -203,6 +203,14 @@ void test_non_power_of_arity()
     {
         test_local_use(num_sites, 4);
     }
+
+    // deeper trees, an odd arity, and a wide tree with single-site blocks
+    for (std::uint32_t num_sites : {17u, 33u})
+    {
+        test_local_use(num_sites, 2);
+        test_local_use(num_sites, 3);
+        test_local_use(num_sites, 8);
+    }
 }
 
 // The hierarchical tree is rooted at the communicator's root site, so

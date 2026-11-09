@@ -66,13 +66,10 @@ namespace hpx::collectives::detail {
             return hpx::make_exceptional_future<Result>(error);
         }
 
-        std::size_t const num_sites = hpx::get<0>(communicators.get_info());
-        std::size_t const arity =
-            static_cast<std::size_t>(communicators.get_arity());
         auto const [gather_gen, scatter_gen] =
             hierarchical_phase_generations(generation);
 
-        if (arity >= num_sites)
+        if (communicators.is_flat())
         {
             HPX_ASSERT(communicators.size() == 1);
             return HPX_FORWARD(FlatScan, flat_scan)(communicators.get(0),

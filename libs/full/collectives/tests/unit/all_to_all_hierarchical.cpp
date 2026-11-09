@@ -180,7 +180,7 @@ int hpx_main()
         // Unbalanced cases (num_sites not a power of arity)
         for (int arity : {2, 3, 4})
         {
-            for (std::uint32_t n : {3, 5, 7, 11})
+            for (std::uint32_t n : {3, 5, 7, 11, 17})
             {
                 test_uniform_payload(n, arity);
                 test_distinct_payload(n, arity);
@@ -192,6 +192,12 @@ int hpx_main()
             test_uniform_payload(n, arity, root);
             test_distinct_payload(n, arity, root);
         });
+        // deeper and wider trees
+        for (int arity : {2, 8})
+        {
+            test_uniform_payload(33, arity);
+            test_distinct_payload(33, arity);
+        }
     }
 
     return hpx::finalize();

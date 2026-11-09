@@ -466,9 +466,6 @@ namespace hpx::collectives {
             return hpx::make_exceptional_future<std::vector<arg_type>>(error);
         }
 
-        std::size_t const num_sites_val = hpx::get<0>(communicators.get_info());
-        std::size_t const arity_val = communicators.get_arity();
-
         if (auto const error = detail::validate_hierarchical_root_site(
                 communicators, root_site,
                 "hpx::collectives::all_gather (hierarchical)", "all_gather"))
@@ -479,15 +476,13 @@ namespace hpx::collectives {
         auto const [gather_gen, broadcast_gen] =
             detail::hierarchical_phase_generations(generation);
 
-        // Flat fast path: when arity >= num_sites, the tree builder's leaf
-        // condition (right - left < arity) fired at the root call and
-        // produced a single flat communicator spanning all sites. The
-        // gather+broadcast decomposition then collapses to a single flat
-        // all_gather; dispatch directly to avoid the two separate gate
-        // synchronizations, but still advance the gate by two (run at 2k-1,
-        // double_step) so the flat instance stays shareable with
-        // other collectives.
-        if (arity_val >= num_sites_val)
+        // Flat fast path: the tree is a single flat communicator spanning
+        // all sites. The gather+broadcast decomposition then collapses to a
+        // single flat all_gather; dispatch directly to avoid the two separate
+        // gate synchronizations, but still advance the gate by two (run at
+        // 2k-1, double_step) so the flat instance stays shareable with other
+        // collectives.
+        if (communicators.is_flat())
         {
             HPX_ASSERT(communicators.size() == 1);
             return detail::all_gather(communicators.get(0),

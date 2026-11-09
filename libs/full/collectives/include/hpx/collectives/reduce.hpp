@@ -633,6 +633,7 @@ namespace hpx::collectives {
                 hierarchical_run_params(generation, num_generations);
 
             std::decay_t<T> result = HPX_FORWARD(T, local_result);
+            // The root site roots every sub-communicator it belongs to.
             for (std::size_t i = communicators.size() - 1; i != 0; --i)
             {
                 result = reduce_here(communicators.get(i), HPX_MOVE(result), op,
@@ -833,6 +834,7 @@ namespace hpx::collectives {
                 hierarchical_run_params(generation, num_generations);
 
             std::decay_t<T> result = HPX_FORWARD(T, local_result);
+            // This site roots sub-communicators 1.., and is a child in 0.
             for (std::size_t i = communicators.size() - 1; i != 0; --i)
             {
                 result = reduce_here(communicators.get(i), HPX_MOVE(result), op,

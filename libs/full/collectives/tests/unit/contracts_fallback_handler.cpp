@@ -19,6 +19,7 @@
 #include <hpx/modules/contracts.hpp>
 #include <hpx/modules/testing.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -107,6 +108,8 @@ void check_hierarchical_communicator(hierarchical_communicator const& comms)
     test_violation([&] { (void) comms.get(size); }, condition);
     test_violation([&] { (void) comms.site(size); }, condition);
     test_violation([&] { (void) comms[size]; }, condition);
+    test_violation(
+        [&] { (void) comms.block_sizes(size); }, "idx < block_sizes_.size()");
 }
 
 // All sites create their communicators concurrently, as in the other
@@ -140,10 +143,14 @@ void test_hierarchical_communicator(
         comms.push_back(f.get());
     }
 
-    // only the root is guaranteed to be on more than one level of the tree
-    if (num_sites > static_cast<std::uint32_t>(arity))
+    // More sites than fit into one leaf (max(4, arity + 1)) give a tree with
+    // several levels, in which some site is a child in one sub-communicator
+    // and roots another one.
+    if (num_sites > (std::max) (4u, static_cast<std::uint32_t>(arity + 1)))
     {
-        HPX_TEST_LTE(std::size_t(2), comms[0].size());
+        HPX_TEST(!comms[0].is_flat());
+        HPX_TEST(std::any_of(comms.begin(), comms.end(),
+            [](auto const& c) { return c.size() == 2; }));
     }
 
     for (auto const& c : comms)
@@ -183,7 +190,7 @@ int hpx_main()
     hpx::contracts::set_violation_handler(throwing_handler);
 
     test_communicator();
-    // more sites than the arity gives a tree with several levels
+    // more sites than fit into one leaf give a tree with several levels
     test_hierarchical_communicator(1, 2);
     test_hierarchical_communicator(5, 2);
     test_hierarchical_communicator(9, 4);

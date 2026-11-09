@@ -571,6 +571,7 @@ namespace hpx::collectives {
             auto const [run_gen, run_step] =
                 hierarchical_run_params(generation, num_generations);
 
+            // The root site roots every sub-communicator it belongs to.
             std::decay_t<T> result = HPX_FORWARD(T, local_result);
             for (std::size_t i = 0; i < communicators.size() - 1; ++i)
             {
@@ -767,6 +768,7 @@ namespace hpx::collectives {
                     communicators.site(0), run_gen, run_step)
                                .get();
 
+                // This site roots the remaining sub-communicators.
                 for (std::size_t i = 1; i < communicators.size() - 1; ++i)
                 {
                     result =

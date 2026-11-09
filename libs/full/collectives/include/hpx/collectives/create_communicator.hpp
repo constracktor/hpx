@@ -165,6 +165,15 @@ namespace hpx { namespace collectives {
     /// multiple invocations of a collective operation (such as \a all_gather,
     /// \a all_reduce, \a all_to_all, \a broadcast, etc.).
     ///
+    /// The sites form a "centered" k-ary tree rooted at \a root_site (see
+    /// detail/centered_tree.hpp): the other sites are split into \a arity
+    /// blocks of consecutive sites (the sites on either side of the root are
+    /// split separately, so no block spans the root) whose centers are the
+    /// children of the root, and every larger block is again rooted at its
+    /// center with \a arity child blocks. Each sub-communicator holds a
+    /// parent and its children, listed in site order; blocks of at most
+    /// max(4, arity + 1) sites form one leaf sub-communicator.
+    ///
     /// \param  basename    The base name identifying the collective operation
     /// \param  num_sites   The number of participating sites (default: all
     ///                     localities).
@@ -195,8 +204,8 @@ namespace hpx { namespace collectives {
     ///                     comparison: num_sites < threshold). The default
     ///                     is 16; pass 0 to disable the fallback. The
     ///                     communicator is still a single flat communicator
-    ///                     if \a arity is not smaller than the number of
-    ///                     sites.
+    ///                     if all sites fit into one leaf of the tree
+    ///                     (num_sites <= max(4, arity + 1)).
     ///
     /// \note   The sub-communicators of a hierarchical_communicator share one
     ///         generation sequence per registered name. Every hierarchical
@@ -431,9 +440,16 @@ namespace hpx::collectives {
     private:
         hierarchical_communicator(
             std::vector<hpx::tuple<communicator, this_site_arg>>&& comms,
-            arity_arg arity, root_site_arg root_site, num_sites_arg num_sites,
+            std::vector<std::vector<std::size_t>>&& block_sizes,
+            std::vector<std::size_t>&& top_level_block_sizes,
+            std::ptrdiff_t top_level_group, bool flat, arity_arg arity,
+            root_site_arg root_site, num_sites_arg num_sites,
             this_site_arg this_site) noexcept
           : communicators(HPX_MOVE(comms))
+          , block_sizes_(HPX_MOVE(block_sizes))
+          , top_level_block_sizes_(HPX_MOVE(top_level_block_sizes))
+          , top_level_group_(top_level_group)
+          , flat_(flat)
           , num_sites(num_sites)
           , this_site(this_site)
           , root_site(root_site)
@@ -506,6 +522,42 @@ namespace hpx::collectives {
             return root_site;
         }
 
+        // True if the whole tree is a single (flat) communicator spanning all
+        // sites. The hierarchical collectives then dispatch directly to the
+        // flat operation.
+        [[nodiscard]] constexpr bool is_flat() const noexcept
+        {
+            return flat_;
+        }
+
+        // The number of sites each member of sub-communicator idx represents,
+        // indexed by local rank (members are in ascending site order, so the
+        // blocks are consecutive and in site order). The entry of the root
+        // of the sub-communicator is 1.
+        [[nodiscard]] std::vector<std::size_t> const& block_sizes(
+            std::size_t idx) const
+        {
+            HPX_CONTRACT_ASSERT(idx < block_sizes_.size());
+            return block_sizes_[idx];
+        }
+
+        // Sizes of the top-level groups in site order: the root site on its
+        // own and the blocks of consecutive sites below each child of the
+        // root. These are the same on every site.
+        [[nodiscard]] std::vector<std::size_t> const& top_level_block_sizes()
+            const noexcept
+        {
+            return top_level_block_sizes_;
+        }
+
+        // The local rank of this site in the top-level communicator (which is
+        // also the index of its top-level group), or -1 if this site is not a
+        // member of the top-level communicator.
+        [[nodiscard]] constexpr std::ptrdiff_t top_level_group() const noexcept
+        {
+            return top_level_group_;
+        }
+
         [[nodiscard]] HPX_EXPORT
             hpx::tuple<num_sites_arg, this_site_arg, root_site_arg>
             get_info_ex() const noexcept;
@@ -515,6 +567,10 @@ namespace hpx::collectives {
 
     private:
         std::vector<hpx::tuple<communicator, this_site_arg>> communicators;
+        std::vector<std::vector<std::size_t>> block_sizes_;
+        std::vector<std::size_t> top_level_block_sizes_;
+        std::ptrdiff_t top_level_group_;
+        bool flat_;
         num_sites_arg num_sites;
         this_site_arg this_site;
         root_site_arg root_site;

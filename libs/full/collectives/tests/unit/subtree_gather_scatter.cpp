@@ -28,6 +28,20 @@ constexpr int ITERATIONS = 10;
 constexpr int ITERATIONS = 50;
 #endif
 
+// The first site and the number of sites of the top-level group of a
+// representative (its local rank in the top-level communicator).
+std::pair<std::size_t, std::size_t> top_level_group_range(
+    hierarchical_communicator const& comms, std::ptrdiff_t const gidx)
+{
+    auto const& sizes = comms.top_level_block_sizes();
+    std::size_t left = 0;
+    for (std::ptrdiff_t g = 0; g != gidx; ++g)
+    {
+        left += sizes[static_cast<std::size_t>(g)];
+    }
+    return {left, sizes[static_cast<std::size_t>(gidx)]};
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Test: gather to rep then scatter back (round-trip), scalar payload.
 // Each site contributes its site id. After gather, the rep should hold
@@ -50,9 +64,8 @@ void test_round_trip(std::uint32_t num_sites, int arity)
                 arity_arg(arity), generation_arg(), root_site_arg(),
                 flat_fallback_threshold_arg(0));
 
-            auto [ns, ts] = comms.get_info();
-            bool const is_rep =
-                detail::is_top_level_rep(ts, ns, comms.get_arity(), 0);
+            std::ptrdiff_t const gidx = comms.top_level_group();
+            bool const is_rep = gidx != -1;
 
             for (int iter = 0; iter != ITERATIONS; ++iter)
             {
@@ -67,17 +80,8 @@ void test_round_trip(std::uint32_t num_sites, int arity)
                         generation_arg(gather_gen));
 
                     // Verify: gathered should contain contiguous site ids.
-                    std::ptrdiff_t const gidx =
-                        detail::classify_site(ts, ns, comms.get_arity());
-                    HPX_TEST_NEQ(gidx, static_cast<std::ptrdiff_t>(-1));
-
-                    std::size_t const group = static_cast<std::size_t>(gidx);
-                    std::size_t const group_left =
-                        detail::get_top_level_group_left(
-                            group, ns, comms.get_arity());
-                    std::size_t const group_size =
-                        detail::get_top_level_group_size(
-                            group, ns, comms.get_arity());
+                    auto const [group_left, group_size] =
+                        top_level_group_range(comms, gidx);
 
                     HPX_TEST_EQ(gathered.num_rows(), group_size);
                     HPX_TEST_EQ(gathered.data().size(), group_size);
@@ -138,9 +142,8 @@ void test_vector_payload(std::uint32_t num_sites, int arity)
                 arity_arg(arity), generation_arg(), root_site_arg(),
                 flat_fallback_threshold_arg(0));
 
-            auto [ns, ts] = comms.get_info();
-            bool const is_rep =
-                detail::is_top_level_rep(ts, ns, comms.get_arity(), 0);
+            std::ptrdiff_t const gidx = comms.top_level_group();
+            bool const is_rep = gidx != -1;
 
             std::vector<std::uint32_t> my_data = {
                 site * 10, site * 10 + 1, site * 10 + 2};
@@ -151,15 +154,8 @@ void test_vector_payload(std::uint32_t num_sites, int arity)
                 auto gathered = detail::subtree_gather_at_top_rep(
                     comms, HPX_MOVE(my_data), generation_arg(1));
 
-                std::ptrdiff_t const gidx =
-                    detail::classify_site(ts, ns, comms.get_arity());
-                HPX_TEST_NEQ(gidx, static_cast<std::ptrdiff_t>(-1));
-
-                std::size_t const group = static_cast<std::size_t>(gidx);
-                std::size_t const group_left = detail::get_top_level_group_left(
-                    group, ns, comms.get_arity());
-                std::size_t const group_size = detail::get_top_level_group_size(
-                    group, ns, comms.get_arity());
+                auto const [group_left, group_size] =
+                    top_level_group_range(comms, gidx);
 
                 HPX_TEST_EQ(gathered.num_rows(), group_size);
                 HPX_TEST_EQ(gathered.data().size(), group_size * 3);
@@ -222,18 +218,20 @@ int hpx_main()
         }
 
         // Unbalanced, non-power-of-arity cases.
-        for (auto num_sites : {3u, 5u, 7u, 9u, 11u})
+        for (auto num_sites : {3u, 5u, 7u, 9u, 11u, 17u})
         {
             for (int arity : {2, 3, 4})
             {
                 test_round_trip(num_sites, arity);
             }
         }
+        test_round_trip(33, 8);
 
         // Vector payload tests.
         test_vector_payload(8, 2);
         test_vector_payload(11, 4);
         test_vector_payload(5, 2);
+        test_vector_payload(17, 3);
     }
 
     return hpx::finalize();

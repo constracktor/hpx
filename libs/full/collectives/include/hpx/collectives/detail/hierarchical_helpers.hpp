@@ -153,49 +153,6 @@ namespace hpx::collectives::detail {
             num_generations};
     }
 
-    // The topology helpers below are deliberately the only entities in this
-    // file that carry HPX_CXX_EXPORT: the unit tests (hierarchical_helpers,
-    // subtree_gather_scatter) call them directly, and with C++20 modules
-    // enabled those tests consume this header through `import HPX.Full;`
-    // (via the generated hpx/modules/collectives.hpp), so anything named
-    // directly by an importer must be module-exported. Everything else here
-    // is referenced only from within the module purview (reachability is
-    // sufficient for the templates and validation helpers) and intentionally
-    // stays unexported.
-    HPX_CXX_EXPORT [[nodiscard]] HPX_EXPORT std::size_t
-    get_top_level_group_count(std::size_t num_sites, std::size_t arity);
-
-    HPX_CXX_EXPORT [[nodiscard]] HPX_EXPORT std::size_t
-    get_top_level_group_left(
-        std::size_t group, std::size_t num_sites, std::size_t arity);
-
-    HPX_CXX_EXPORT [[nodiscard]] HPX_EXPORT std::size_t
-    get_top_level_group_size(
-        std::size_t group, std::size_t num_sites, std::size_t arity);
-
-    HPX_CXX_EXPORT [[nodiscard]] HPX_EXPORT std::ptrdiff_t classify_site(
-        std::size_t this_site, std::size_t num_sites, std::size_t arity);
-
-    // The leader of the range [left, right] of sites is the root site if the
-    // range contains it, and its leftmost site otherwise. Leaders nest: the
-    // leader of a range also leads the part of the range it is in. A top-level
-    // group is represented by its leader.
-    [[nodiscard]] constexpr std::size_t range_leader(
-        std::size_t left, std::size_t right, std::size_t root) noexcept
-    {
-        return (left <= root && root <= right) ? root : left;
-    }
-
-    HPX_CXX_EXPORT [[nodiscard]] HPX_EXPORT bool is_top_level_rep(
-        std::size_t this_site, std::size_t num_sites, std::size_t arity,
-        std::size_t root);
-
-    // Overload for callers that have already classified this_site. Only
-    // referenced from within the module purview, hence no HPX_CXX_EXPORT.
-    [[nodiscard]] HPX_EXPORT bool is_top_level_rep(std::ptrdiff_t group,
-        std::size_t this_site, std::size_t num_sites, std::size_t arity,
-        std::size_t root);
-
     template <typename T, typename F>
     std::vector<T> make_inclusive_scan_results(std::vector<T>&& values, F&& op)
     {

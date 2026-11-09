@@ -103,20 +103,30 @@ call, whatever the operation, as described in the next section:
 The complete program is
 :hpx-header:`libs/full/collectives/examples,hierarchical_collectives.cpp`. It
 runs ``hpx_main`` on all localities, so start it on several localities, for
-example with ``hpxrun.py -l 4 -t 1 bin/hierarchical_collectives -- --arity=2``.
+example with ``hpxrun.py -l 8 -t 1 bin/hierarchical_collectives -- --arity=2``.
 
 A few rules apply to all hierarchical collectives:
 
+* The sites form a "centered" tree rooted at the root site. The other sites
+  are split into blocks of consecutive sites (no block spans the root), and
+  the center of each block is a child of the root. Every larger block is again
+  rooted at its center, whose children are the centers of the blocks the rest
+  of it is split into. Each sub-communicator holds a parent and its children,
+  listed in site order, so the results of ``gather_here``, ``all_gather``,
+  ``scatter_to``, ``all_to_all``, the scans, and ``reduce_here`` keep the
+  site order for any root.
 * The arity is the number of children of each node in the tree. It must be at
-  least 2 and defaults to 2. A small arity gives a deeper tree with fewer
-  participants per sub-communicator, a large arity gives a flatter tree with
-  fewer steps. The number of sites does not have to be a power of the arity.
+  least 2 and defaults to 2. A block of at most ``max(4, arity + 1)`` sites
+  forms one leaf sub-communicator. A small arity gives a deeper tree with
+  fewer participants per sub-communicator, a large arity gives a flatter tree
+  with fewer steps. The number of sites does not have to be a power of the
+  arity.
 * If the number of sites is smaller than the flat fallback threshold
   (:hpx:struct:`hpx::collectives::flat_fallback_threshold_arg`, 16 by
   default), the communicator collapses to a single flat communicator spanning
   all sites. Pass ``flat_fallback_threshold_arg(0)`` to disable this fallback.
-  The communicator is still a single flat communicator if the arity is not
-  smaller than the number of sites.
+  The communicator is still a single flat communicator if all sites fit into
+  one leaf, that is, if there are at most ``max(4, arity + 1)`` sites.
 * Any site can be the root of the tree, but all sites have to pass the same
   ``root_site_arg``. Only the root site may call the root-side operations
   (``broadcast_to``, ``gather_here``, ``reduce_here``, and ``scatter_to``).

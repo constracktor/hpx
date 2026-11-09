@@ -16,22 +16,8 @@
 
 #include <cstddef>
 #include <exception>
-#include <utility>
 
 namespace hpx::collectives::detail {
-
-    namespace {
-
-        // The top level distributes num_sites as evenly as possible over
-        // count groups (matching the division logic used by
-        // recursively_fill_communicators): the first (num_sites % count)
-        // groups get one extra site.
-        std::pair<std::size_t, std::size_t> divide_sites(
-            std::size_t const num_sites, std::size_t const count) noexcept
-        {
-            return {num_sites / count, num_sites % count};
-        }
-    }    // namespace
 
     std::exception_ptr validate_hierarchical_communicator(
         hierarchical_communicator const& communicators,
@@ -46,8 +32,8 @@ namespace hpx::collectives::detail {
         auto const [num_sites_val, communicator_site] =
             communicators.get_info();
 
-        // An out-of-range site would classify into no top-level group and
-        // silently take a non-representative branch, hanging the collective.
+        // An out-of-range site belongs to no sub-communicator of the tree and
+        // would hang the collective.
         if (this_site >= num_sites_val)
         {
             return HPX_GET_EXCEPTION(hpx::error::bad_parameter, operation,
@@ -120,87 +106,6 @@ namespace hpx::collectives::detail {
         return std::exception_ptr();
     }
 
-    std::size_t get_top_level_group_count(
-        std::size_t const num_sites, std::size_t const arity)
-    {
-        HPX_ASSERT(num_sites != 0);
-        HPX_ASSERT(arity != 0);
-
-        return arity > num_sites ? num_sites : arity;
-    }
-
-    std::size_t get_top_level_group_size(std::size_t const group,
-        std::size_t const num_sites, std::size_t const arity)
-    {
-        std::size_t const count = get_top_level_group_count(num_sites, arity);
-        HPX_ASSERT(group < count);
-
-        auto const [division_steps, remainder] = divide_sites(num_sites, count);
-        return division_steps + (group < remainder ? 1 : 0);
-    }
-
-    std::size_t get_top_level_group_left(std::size_t const group,
-        std::size_t const num_sites, std::size_t const arity)
-    {
-        std::size_t const count = get_top_level_group_count(num_sites, arity);
-        HPX_ASSERT(group < count);
-
-        auto const [division_steps, remainder] = divide_sites(num_sites, count);
-        return group * division_steps + (group < remainder ? group : remainder);
-    }
-
-    // Return the index of the top-level group this_site belongs to, or -1 if
-    // there is none. The return type is signed so the -1 sentinel needs no
-    // casts at the call sites.
-    std::ptrdiff_t classify_site(std::size_t const this_site,
-        std::size_t const num_sites, std::size_t const arity)
-    {
-        if (this_site >= num_sites)
-        {
-            return -1;
-        }
-
-        std::size_t const count = get_top_level_group_count(num_sites, arity);
-        for (std::size_t group = 0; group != count; ++group)
-        {
-            std::size_t const left =
-                get_top_level_group_left(group, num_sites, arity);
-            std::size_t const size =
-                get_top_level_group_size(group, num_sites, arity);
-
-            if (this_site >= left && this_site < left + size)
-            {
-                return static_cast<std::ptrdiff_t>(group);
-            }
-        }
-
-        return -1;
-    }
-
-    bool is_top_level_rep(std::ptrdiff_t const group,
-        std::size_t const this_site, std::size_t const num_sites,
-        std::size_t const arity, std::size_t const root)
-    {
-        if (group == -1)
-        {
-            return false;
-        }
-
-        std::size_t const left = get_top_level_group_left(
-            static_cast<std::size_t>(group), num_sites, arity);
-        std::size_t const size = get_top_level_group_size(
-            static_cast<std::size_t>(group), num_sites, arity);
-
-        return this_site == range_leader(left, left + size - 1, root);
-    }
-
-    bool is_top_level_rep(std::size_t const this_site,
-        std::size_t const num_sites, std::size_t const arity,
-        std::size_t const root)
-    {
-        return is_top_level_rep(classify_site(this_site, num_sites, arity),
-            this_site, num_sites, arity, root);
-    }
 }    // namespace hpx::collectives::detail
 
 #endif

@@ -188,11 +188,61 @@ void test_local_use(
     hpx::wait_all(std::move(sites));
 }
 
-// Non-power-of-arity coverage. The hierarchical tree construction in
-// create_communicator.cpp handles uneven partitioning via the
-// division_steps + remainder logic and degenerate single-site leaves.
-// This test exercises site counts that are not clean multiples of the
-// arity, including cases where recursion produces size-1 subgroups.
+// String concatenation is not commutative, so the result is only right if the
+// tree combines the contributions in site order.
+// The reduction is not commutative, so this checks that the contributions are
+// combined in site order for any root.
+void test_string_concat(
+    std::uint32_t num_sites, int arity, std::uint32_t root = 0)
+{
+    std::vector<hpx::future<void>> sites;
+    sites.reserve(num_sites);
+
+    for (std::uint32_t site = 0; site != num_sites; ++site)
+    {
+        sites.push_back(hpx::async([=]() {
+            std::string const basename = "/test/reduce_hierarchical/concat/" +
+                std::to_string(num_sites) + "/" + std::to_string(arity) + "/";
+            auto const comms = create_hierarchical_communicator(
+                basename.c_str(), num_sites_arg(num_sites), this_site_arg(site),
+                arity_arg(arity), generation_arg(), root_site_arg(root),
+                flat_fallback_threshold_arg(0));
+
+            auto concat = [](std::string const& lhs, std::string const& rhs) {
+                return lhs + ":" + rhs;
+            };
+
+            for (int i = 0; i != 3; ++i)
+            {
+                std::string value = std::to_string(site + i);
+                if (site == root)
+                {
+                    std::string const result =
+                        reduce_here(hpx::launch::sync, comms, HPX_MOVE(value),
+                            concat, this_site_arg(site), generation_arg(i + 1));
+
+                    std::string expected = std::to_string(i);
+                    for (std::uint32_t j = 1; j != num_sites; ++j)
+                    {
+                        expected += ":" + std::to_string(j + i);
+                    }
+                    HPX_TEST_EQ(result, expected);
+                }
+                else
+                {
+                    reduce_there(comms, HPX_MOVE(value), concat,
+                        this_site_arg(site), generation_arg(i + 1))
+                        .get();
+                }
+            }
+        }));
+    }
+
+    hpx::wait_all(std::move(sites));
+}
+
+// Non-power-of-arity coverage: site counts that split into uneven blocks,
+// including blocks of a single site.
 void test_non_power_of_arity()
 {
     // arity=2 with site counts that force uneven splits and odd-sized
@@ -207,6 +257,14 @@ void test_non_power_of_arity()
     for (std::uint32_t num_sites : {5u, 6u, 7u, 9u, 10u, 11u, 13u, 15u})
     {
         test_local_use(num_sites, 4);
+    }
+
+    // deeper trees, an odd arity, and a wide tree with single-site blocks
+    for (std::uint32_t num_sites : {17u, 33u})
+    {
+        test_local_use(num_sites, 2);
+        test_local_use(num_sites, 3);
+        test_local_use(num_sites, 8);
     }
 }
 
@@ -316,6 +374,21 @@ int hpx_main()
             test_local_use(n, arity, root);
         });
 
+        for (int arity : {2, 3, 8})
+        {
+            for (std::uint32_t num_sites : {7u, 17u, 33u})
+            {
+                test_string_concat(num_sites, arity);
+            }
+        }
+        for_each_local_root([](std::uint32_t n, int arity, std::uint32_t root) {
+            test_string_concat(n, arity, root);
+        });
+        for (std::uint32_t root : {1u, 6u, 16u, 32u})
+        {
+            test_string_concat(33, 2, root);
+            test_string_concat(33, 8, root);
+        }
         test_hierarchical_role_rejected();
         test_hierarchical_role_rejected(1);
         test_flat_basename_site_equals_root_rejected();

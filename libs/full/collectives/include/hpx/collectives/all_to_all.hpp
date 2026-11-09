@@ -339,16 +339,24 @@ namespace hpx::collectives {
         class hierarchical_all_to_all_exchange
         {
         public:
+            // group_sizes holds the sizes of the top-level groups, which are
+            // blocks of consecutive sites in ascending order.
             hierarchical_all_to_all_exchange(uniform_rows<T>&& gathered,
                 std::size_t const group_index, std::size_t const num_sites,
-                std::size_t const arity)
+                std::vector<std::size_t> const& group_sizes)
               : group_index_(group_index)
               , num_sites_(num_sites)
-              , arity_(arity)
-              , my_group_size_(
-                    get_top_level_group_size(group_index, num_sites, arity))
-              , num_groups_(get_top_level_group_count(num_sites, arity))
+              , group_sizes_(group_sizes)
+              , group_lefts_(group_sizes.size())
+              , my_group_size_(group_sizes[group_index])
+              , num_groups_(group_sizes.size())
             {
+                for (std::size_t group = 1; group < num_groups_; ++group)
+                {
+                    group_lefts_[group] =
+                        group_lefts_[group - 1] + group_sizes_[group - 1];
+                }
+
                 constexpr char const* operation =
                     "hpx::collectives::all_to_all (hierarchical)";
 
@@ -390,9 +398,9 @@ namespace hpx::collectives {
                     for (std::size_t group = 0; group != num_groups_; ++group)
                     {
                         std::size_t const destination_group_size =
-                            get_top_level_group_size(group, num_sites_, arity_);
+                            group_sizes_[group];
                         std::size_t const destination_left =
-                            get_top_level_group_left(group, num_sites_, arity_);
+                            group_lefts_[group];
                         auto& destination =
                             group == group_index_ ? diagonal_ : exchange_data_;
                         for (std::size_t destination_site = destination_left;
@@ -431,8 +439,7 @@ namespace hpx::collectives {
                 }
                 for (std::size_t group = 0; group != num_groups_; ++group)
                 {
-                    std::size_t const source_group_size =
-                        get_top_level_group_size(group, num_sites_, arity_);
+                    std::size_t const source_group_size = group_sizes_[group];
                     std::size_t const expected_size = group == group_index_ ?
                         0 :
                         checked_data_size_product(
@@ -468,7 +475,7 @@ namespace hpx::collectives {
                     for (std::size_t group = 0; group != num_groups_; ++group)
                     {
                         std::size_t const source_group_size =
-                            get_top_level_group_size(group, num_sites_, arity_);
+                            group_sizes_[group];
                         for (std::size_t source = 0;
                             source != source_group_size; ++source)
                         {
@@ -499,7 +506,8 @@ namespace hpx::collectives {
         private:
             std::size_t group_index_;
             std::size_t num_sites_;
-            std::size_t arity_;
+            std::vector<std::size_t> group_sizes_;
+            std::vector<std::size_t> group_lefts_;
             std::size_t my_group_size_;
             std::size_t num_groups_;
             std::vector<T> exchange_data_;
@@ -863,7 +871,6 @@ namespace hpx::collectives {
         }
 
         std::size_t const num_sites_val = hpx::get<0>(communicators.get_info());
-        std::size_t const arity_val = communicators.get_arity();
 
         // The phase-2 packing slices each gathered contribution with
         // unchecked iterator arithmetic, so a wrong-size contribution must
@@ -891,16 +898,12 @@ namespace hpx::collectives {
         auto const [first_gen, second_gen] =
             detail::hierarchical_phase_generations(generation);
 
-        // Flat fast path: when arity >= num_sites (either because the user
-        // chose a large arity or because the factory overrode arity to
-        // num_sites for the flat fallback), the tree builder's leaf condition
-        // (right - left < arity) fired at the root call and produced a single
-        // flat communicator spanning all sites. The 3-phase algorithm then
-        // collapses to a flat all_to_all; dispatch directly to avoid the
-        // intermediate allocations, but still advance the gate by two (run at
-        // 2k-1, double_step) so the flat instance stays shareable with other
-        // collectives.
-        if (arity_val >= num_sites_val)
+        // Flat fast path: the tree is a single flat communicator spanning all
+        // sites. The 3-phase algorithm then collapses to a flat all_to_all;
+        // dispatch directly to avoid the intermediate allocations, but still
+        // advance the gate by two (run at 2k-1, double_step) so the flat
+        // instance stays shareable with other collectives.
+        if (communicators.is_flat())
         {
             HPX_ASSERT(communicators.size() == 1);
             return detail::all_to_all(communicators.get(0),
@@ -908,10 +911,13 @@ namespace hpx::collectives {
                 detail::generation_mode::double_step);
         }
 
-        std::ptrdiff_t const gidx =
-            detail::classify_site(this_site, num_sites_val, arity_val);
-        bool const is_representative = detail::is_top_level_rep(gidx, this_site,
-            num_sites_val, arity_val, communicators.get_root_site());
+        // The top-level groups are the root site on its own and the blocks
+        // of consecutive sites below each child of the root, in site order.
+        // Their representatives (the root and its children) are exactly the
+        // members of the top-level communicator, which is sub-communicator 0
+        // of each of them.
+        std::ptrdiff_t const gidx = communicators.top_level_group();
+        bool const is_representative = gidx != -1;
 
         if (is_representative)
         {
@@ -927,7 +933,8 @@ namespace hpx::collectives {
             // represent it by empty exchange segments, avoiding its round trip
             // through the inter-group communicator.
             detail::hierarchical_all_to_all_exchange<T> exchange(
-                HPX_MOVE(gathered), group_index, num_sites_val, arity_val);
+                HPX_MOVE(gathered), group_index, num_sites_val,
+                communicators.top_level_block_sizes());
 
             // The exchange touches the inter-group communicator once but must
             // advance it by two generations to stay in lock-step with the

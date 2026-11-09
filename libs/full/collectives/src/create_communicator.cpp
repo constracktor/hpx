@@ -13,6 +13,7 @@
 #include <hpx/assert.hpp>
 #include <hpx/collectives/argument_types.hpp>
 #include <hpx/collectives/create_communicator.hpp>
+#include <hpx/collectives/detail/centered_tree.hpp>
 #include <hpx/collectives/detail/hierarchical_helpers.hpp>
 #include <hpx/modules/async_base.hpp>
 #include <hpx/modules/async_distributed.hpp>
@@ -31,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -490,70 +492,6 @@ namespace hpx::collectives {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    namespace {
-
-        void recursively_fill_communicators(
-            std::vector<hpx::tuple<communicator, this_site_arg>>& communicators,
-            std::size_t left, std::size_t right, std::string const& basename,
-            arity_arg arity, this_site_arg this_site, generation_arg generation,
-            std::size_t root)
-        {
-            std::string name(basename);
-            name += std::to_string(left) + "-" + std::to_string(right) + "/";
-
-            std::size_t const leader = detail::range_leader(left, right, root);
-
-            if (right - left < arity)
-            {
-                auto c = create_communicator(name.c_str(),
-                    num_sites_arg(right - left + 1),
-                    this_site_arg(this_site - left), generation_arg(generation),
-                    root_site_arg(leader - left));
-
-                communicators.emplace_back(
-                    HPX_MOVE(c), this_site_arg(this_site - left));
-                return;
-            }
-
-            std::size_t const num_sites = right - left + 1;
-            std::size_t const num_groups =
-                detail::get_top_level_group_count(num_sites, arity);
-
-            // the communicator connecting the groups is created by the leader
-            // of this range, which is a member of exactly one of the groups
-            std::size_t const leader_group =
-                detail::classify_site(leader - left, num_sites, arity);
-
-            for (std::size_t i = 0; i != num_groups; ++i)
-            {
-                std::size_t const current_left = left +
-                    detail::get_top_level_group_left(i, num_sites, arity);
-                std::size_t const current_right = current_left +
-                    detail::get_top_level_group_size(i, num_sites, arity) - 1;
-                std::size_t const current_leader =
-                    detail::range_leader(current_left, current_right, root);
-
-                if (this_site == current_leader)
-                {
-                    auto c = create_communicator(name.c_str(),
-                        num_sites_arg(num_groups), this_site_arg(i),
-                        generation_arg(generation),
-                        root_site_arg(leader_group));
-
-                    communicators.emplace_back(HPX_MOVE(c), this_site_arg(i));
-                }
-
-                if (this_site >= current_left && this_site <= current_right)
-                {
-                    recursively_fill_communicators(communicators, current_left,
-                        current_right, basename, arity, this_site, generation,
-                        root);
-                    break;
-                }
-            }
-        }
-    }    // namespace
-
     hierarchical_communicator create_hierarchical_communicator(
         char const* basename, num_sites_arg num_sites, this_site_arg this_site,
         arity_arg arity, generation_arg generation, root_site_arg root_site,
@@ -597,23 +535,67 @@ namespace hpx::collectives {
         }
 
         // Flat fallback: below the threshold, hierarchical overhead exceeds
-        // its benefit. Overriding arity to num_sites makes the tree builder's
-        // leaf condition (right - left < arity) fire at the root call, which
-        // produces a single flat communicator spanning all sites; the
-        // hierarchical collectives dispatch on the same arity >= num_sites
-        // condition and collapse to a direct flat call. Pass threshold == 0
-        // to disable this fallback; an arity that is not smaller than
-        // num_sites still gives a single flat communicator.
-        if (num_sites < threshold)
+        // its benefit, so build a single flat communicator spanning all
+        // sites. The same happens when all sites fit into one leaf of the
+        // tree. The hierarchical collectives dispatch on is_flat() and
+        // collapse to a direct flat call. Pass threshold == 0 to disable the
+        // threshold fallback.
+        //
+        // The tree is rooted at root_site. Its sub-communicators list their
+        // members in ascending site order, so the collectives keep the site
+        // order of the data for any root.
+        std::size_t const n = num_sites;
+        bool const below_threshold = n < threshold;
+        std::vector<detail::centered_comm> const tree =
+            detail::make_centered_tree(n, below_threshold ? n : arity,
+                /* leaf_size */ 4, root_site);
+        HPX_ASSERT(!tree.empty());
+        bool const flat = tree.size() == 1;
+        if (below_threshold)
         {
-            arity = static_cast<std::size_t>(num_sites);
+            // Report the flat arity as before (arity >= num_sites).
+            arity = n;
         }
 
+        // Parents come before their children in the tree, so the
+        // communicators this site belongs to are collected outermost first:
+        // the one in which it is a child (if any), then the one it roots (if
+        // any).
         std::vector<hpx::tuple<communicator, this_site_arg>> communicators;
-        recursively_fill_communicators(communicators, 0, num_sites - 1, name,
-            arity, this_site, generation, root_site);
-        return hierarchical_communicator(
-            HPX_MOVE(communicators), arity, root_site, num_sites, this_site);
+        std::vector<std::vector<std::size_t>> block_sizes;
+        std::ptrdiff_t top_level_group = -1;
+        for (std::size_t c = 0; c != tree.size(); ++c)
+        {
+            auto const& comm = tree[c];
+            auto const it = std::find(
+                comm.members.begin(), comm.members.end(), this_site.argument_);
+            if (it == comm.members.end())
+            {
+                continue;
+            }
+
+            std::size_t const local = static_cast<std::size_t>(
+                std::distance(comm.members.begin(), it));
+            if (c == 0)
+            {
+                top_level_group = static_cast<std::ptrdiff_t>(local);
+            }
+
+            std::string const comm_name =
+                name + "c" + std::to_string(comm.root) + "/";
+            auto comm_client = create_communicator(comm_name.c_str(),
+                num_sites_arg(comm.members.size()), this_site_arg(local),
+                generation, root_site_arg(comm.root_rank));
+
+            communicators.emplace_back(
+                HPX_MOVE(comm_client), this_site_arg(local));
+            block_sizes.push_back(comm.block_sizes);
+        }
+
+        std::vector<std::size_t> top_level_block_sizes = tree[0].block_sizes;
+        return hierarchical_communicator(HPX_MOVE(communicators),
+            HPX_MOVE(block_sizes), HPX_MOVE(top_level_block_sizes),
+            top_level_group, flat, arity, root_site, num_sites, this_site);
     }
 
     bool hierarchical_communicator::valid() const noexcept

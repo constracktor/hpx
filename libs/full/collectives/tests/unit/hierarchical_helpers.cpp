@@ -8,6 +8,7 @@
 #include <hpx/config.hpp>
 
 #if !defined(HPX_COMPUTE_DEVICE_CODE)
+#include <hpx/collectives/detail/centered_tree.hpp>
 #include <hpx/hpx.hpp>
 #include <hpx/hpx_init.hpp>
 #include <hpx/modules/collectives.hpp>
@@ -16,85 +17,21 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <limits>
-#include <numeric>
 #include <string>
 #include <type_traits>
 #include <vector>
 
+using hpx::collectives::detail::centered_comm;
+using hpx::collectives::detail::centered_leaf_size;
 using hpx::collectives::detail::checked_data_size_product;
 using hpx::collectives::detail::checked_data_size_sum;
-using hpx::collectives::detail::classify_site;
-using hpx::collectives::detail::get_top_level_group_count;
-using hpx::collectives::detail::get_top_level_group_left;
-using hpx::collectives::detail::get_top_level_group_size;
 using hpx::collectives::detail::is_ragged_rows_v;
-using hpx::collectives::detail::is_top_level_rep;
 using hpx::collectives::detail::is_uniform_rows_v;
+using hpx::collectives::detail::make_centered_tree;
 using hpx::collectives::detail::ragged_rows;
 using hpx::collectives::detail::uniform_rows;
-
-std::size_t expected_group_count(std::size_t const n, std::size_t const arity)
-{
-    return arity > n ? n : arity;
-}
-
-std::size_t expected_group_size(
-    std::size_t const group, std::size_t const n, std::size_t const arity)
-{
-    std::size_t const count = expected_group_count(n, arity);
-    std::size_t const division_steps = n / count;
-    std::size_t const remainder = n % count;
-
-    return division_steps + (group < remainder ? 1 : 0);
-}
-
-std::size_t expected_group_left(
-    std::size_t const group, std::size_t const n, std::size_t const arity)
-{
-    std::size_t const count = expected_group_count(n, arity);
-    std::size_t const division_steps = n / count;
-    std::size_t const remainder = n % count;
-
-    return group * division_steps + (group < remainder ? group : remainder);
-}
-
-std::size_t expected_group_right(
-    std::size_t const group, std::size_t const n, std::size_t const arity)
-{
-    return expected_group_left(group, n, arity) +
-        expected_group_size(group, n, arity) - 1;
-}
-
-std::ptrdiff_t expected_classification(
-    std::size_t const site, std::size_t const n, std::size_t const arity)
-{
-    if (site >= n)
-    {
-        return -1;
-    }
-
-    std::size_t const count = expected_group_count(n, arity);
-    for (std::size_t group = 0; group != count; ++group)
-    {
-        if (site >= expected_group_left(group, n, arity) &&
-            site <= expected_group_right(group, n, arity))
-        {
-            return static_cast<std::ptrdiff_t>(group);
-        }
-    }
-
-    return -1;
-}
-
-void check_group(std::size_t const group, std::size_t const n,
-    std::size_t const arity, std::size_t const left, std::size_t const right,
-    std::size_t const size)
-{
-    HPX_TEST_EQ(get_top_level_group_left(group, n, arity), left);
-    HPX_TEST_EQ(get_top_level_group_size(group, n, arity), size);
-    HPX_TEST_EQ(left + size - 1, right);
-}
 
 struct move_only_value
 {
@@ -117,217 +54,258 @@ struct move_only_value
     int value;
 };
 
-void test_balanced_arity2()
+///////////////////////////////////////////////////////////////////////////////
+// Topology of the centered k-ary communicator tree
+
+// The sites covered by the subtree below `site`: the site itself plus the
+// subtrees of the children of the communicator it roots.
+std::size_t subtree_size(
+    std::vector<centered_comm> const& tree, std::size_t const site)
 {
-    // N=8, arity=2 -> two groups of 4: [0,3] and [4,7]
-    HPX_TEST_EQ(get_top_level_group_count(8, 2), static_cast<std::size_t>(2));
-
-    check_group(0, 8, 2, 0, 3, 4);
-    check_group(1, 8, 2, 4, 7, 4);
-}
-
-void test_balanced_arity4()
-{
-    // N=8, arity=4 -> four groups of 2: [0,1], [2,3], [4,5], [6,7]
-    HPX_TEST_EQ(get_top_level_group_count(8, 4), static_cast<std::size_t>(4));
-
-    for (std::size_t i = 0; i != 4; ++i)
+    for (auto const& comm : tree)
     {
-        check_group(i, 8, 4, i * 2, i * 2 + 1, 2);
-    }
-}
-
-void test_unbalanced_n11_arity4()
-{
-    // N=11, arity=4 -> 11/4=2 rem 3
-    // groups: [0,2](3), [3,5](3), [6,8](3), [9,10](2)
-    HPX_TEST_EQ(get_top_level_group_count(11, 4), static_cast<std::size_t>(4));
-
-    check_group(0, 11, 4, 0, 2, 3);
-    check_group(1, 11, 4, 3, 5, 3);
-    check_group(2, 11, 4, 6, 8, 3);
-    check_group(3, 11, 4, 9, 10, 2);
-}
-
-void test_unbalanced_n7_arity3()
-{
-    // N=7, arity=3 -> 7/3=2 rem 1
-    // groups: [0,2](3), [3,4](2), [5,6](2)
-    HPX_TEST_EQ(get_top_level_group_count(7, 3), static_cast<std::size_t>(3));
-
-    check_group(0, 7, 3, 0, 2, 3);
-    check_group(1, 7, 3, 3, 4, 2);
-    check_group(2, 7, 3, 5, 6, 2);
-}
-
-void test_arity_exceeds_n()
-{
-    // N=3, arity=8 -> clamp arity to 3, three groups of 1
-    HPX_TEST_EQ(get_top_level_group_count(3, 8), static_cast<std::size_t>(3));
-
-    for (std::size_t i = 0; i != 3; ++i)
-    {
-        check_group(i, 3, 8, i, i, 1);
-    }
-}
-
-void test_single_site()
-{
-    // N=1, arity=2 -> one group of 1
-    HPX_TEST_EQ(get_top_level_group_count(1, 2), static_cast<std::size_t>(1));
-
-    check_group(0, 1, 2, 0, 0, 1);
-}
-
-void test_coverage_property()
-{
-    // For various N and arity, verify that the groups cover [0, N) exactly.
-    for (std::size_t n = 1; n <= 32; ++n)
-    {
-        for (std::size_t arity = 2; arity <= 8; ++arity)
+        if (comm.root == site)
         {
-            std::size_t const count = get_top_level_group_count(n, arity);
-            std::size_t total_size = 0;
-
-            for (std::size_t group = 0; group != count; ++group)
+            std::size_t size = 0;
+            for (std::size_t i = 0; i != comm.members.size(); ++i)
             {
-                std::size_t const left =
-                    get_top_level_group_left(group, n, arity);
-                std::size_t const size =
-                    get_top_level_group_size(group, n, arity);
+                size += i == comm.root_rank ?
+                    1 :
+                    subtree_size(tree, comm.members[i]);
+            }
+            return size;
+        }
+    }
+    return 1;
+}
 
-                total_size += size;
-
-                if (group == 0)
+// Expand the subtree of `site` into its sites, in the order a hierarchical
+// gather joins them (local rank order at every level).
+void expand(std::vector<centered_comm> const& tree, std::size_t const site,
+    std::vector<std::size_t>& out)
+{
+    for (auto const& comm : tree)
+    {
+        if (comm.root == site)
+        {
+            for (std::size_t i = 0; i != comm.members.size(); ++i)
+            {
+                if (i == comm.root_rank)
                 {
-                    HPX_TEST_EQ(left, static_cast<std::size_t>(0));
+                    out.push_back(site);
                 }
                 else
                 {
-                    std::size_t const prev_left =
-                        get_top_level_group_left(group - 1, n, arity);
-                    std::size_t const prev_size =
-                        get_top_level_group_size(group - 1, n, arity);
-                    HPX_TEST_EQ(left, prev_left + prev_size);
+                    expand(tree, comm.members[i], out);
                 }
+            }
+            return;
+        }
+    }
+    out.push_back(site);
+}
 
-                if (group == count - 1)
+void check_tree(
+    std::size_t const n, std::size_t const arity, std::size_t const root = 0)
+{
+    auto const tree = make_centered_tree(n, arity, 4, root);
+    std::size_t const leaf = centered_leaf_size(arity, 4);
+
+    HPX_TEST(!tree.empty());
+    if (tree.empty())
+    {
+        return;
+    }
+
+    std::vector<std::size_t> as_child(n, 0);
+    std::vector<std::size_t> as_root(n, 0);
+
+    for (auto const& comm : tree)
+    {
+        HPX_TEST(!comm.members.empty());
+        HPX_TEST_EQ(comm.members.size(), comm.block_sizes.size());
+        HPX_TEST_LT(comm.root_rank, comm.members.size());
+        HPX_TEST_EQ(comm.members[comm.root_rank], comm.root);
+        HPX_TEST_EQ(comm.block_sizes[comm.root_rank], std::size_t(1));
+        HPX_TEST(std::is_sorted(comm.members.begin(), comm.members.end()));
+        HPX_TEST(std::adjacent_find(comm.members.begin(), comm.members.end()) ==
+            comm.members.end());
+
+        bool const is_leaf = std::all_of(comm.block_sizes.begin(),
+            comm.block_sizes.end(), [](std::size_t b) { return b == 1; });
+        HPX_TEST_LTE(comm.members.size(), is_leaf ? leaf : arity + 1);
+
+        // Every member represents its subtree, and the blocks of the members
+        // are consecutive: member i+1's block starts right after member i's.
+        for (std::size_t i = 0; i != comm.members.size(); ++i)
+        {
+            if (i != comm.root_rank)
+            {
+                HPX_TEST_EQ(
+                    comm.block_sizes[i], subtree_size(tree, comm.members[i]));
+                ++as_child[comm.members[i]];
+            }
+        }
+        ++as_root[comm.root];
+    }
+
+    // the root site roots the first communicator and is nobody's child;
+    // every other site is a non-root member of exactly one communicator
+    HPX_TEST_EQ(tree.front().root, root);
+    HPX_TEST_EQ(tree.front().depth, std::size_t(0));
+    HPX_TEST_EQ(as_child[root], std::size_t(0));
+    for (std::size_t s = 0; s != n; ++s)
+    {
+        if (s != root)
+        {
+            HPX_TEST_EQ(as_child[s], std::size_t(1));
+        }
+        HPX_TEST_LTE(as_root[s], std::size_t(1));
+    }
+
+    // The top-level blocks cover all sites.
+    std::size_t total = 0;
+    for (std::size_t const b : tree.front().block_sizes)
+    {
+        total += b;
+    }
+    HPX_TEST_EQ(total, n);
+
+    // Joining the blocks in local rank order yields global site order (the
+    // tree is an in-order search tree).
+    std::vector<std::size_t> order;
+    expand(tree, root, order);
+    HPX_TEST_EQ(order.size(), n);
+    for (std::size_t s = 0; s != order.size(); ++s)
+    {
+        HPX_TEST_EQ(order[s], s);
+    }
+}
+
+void test_centered_tree_properties()
+{
+    for (std::size_t const arity : {2, 3, 4, 8, 32})
+    {
+        for (std::size_t const n : {1, 2, 3, 5, 16, 17, 255, 256})
+        {
+            check_tree(n, arity);
+            for (std::size_t const root :
+                {std::size_t(1), n / 3, n / 2, n - 2, n - 1})
+            {
+                if (root < n)
                 {
-                    HPX_TEST_EQ(left + size - 1, n - 1);
+                    check_tree(n, arity, root);
                 }
             }
-
-            HPX_TEST_EQ(total_size, n);
         }
     }
-}
 
-void test_classify_site_basic()
-{
-    HPX_TEST_EQ(classify_site(0, 11, 4), static_cast<std::ptrdiff_t>(0));
-    HPX_TEST_EQ(classify_site(1, 11, 4), static_cast<std::ptrdiff_t>(0));
-    HPX_TEST_EQ(classify_site(2, 11, 4), static_cast<std::ptrdiff_t>(0));
-    HPX_TEST_EQ(classify_site(3, 11, 4), static_cast<std::ptrdiff_t>(1));
-    HPX_TEST_EQ(classify_site(5, 11, 4), static_cast<std::ptrdiff_t>(1));
-    HPX_TEST_EQ(classify_site(6, 11, 4), static_cast<std::ptrdiff_t>(2));
-    HPX_TEST_EQ(classify_site(9, 11, 4), static_cast<std::ptrdiff_t>(3));
-    HPX_TEST_EQ(classify_site(10, 11, 4), static_cast<std::ptrdiff_t>(3));
-    HPX_TEST_EQ(classify_site(11, 11, 4), static_cast<std::ptrdiff_t>(-1));
-}
-
-void test_classify_site_exhaustive()
-{
-    // Every site in [0, N) must classify to exactly one group.
-    for (std::size_t n = 1; n <= 32; ++n)
+    // every root of smaller trees
+    for (std::size_t n = 1; n <= 40; ++n)
     {
-        for (std::size_t arity = 2; arity <= 8; ++arity)
+        for (std::size_t arity = 2; arity <= 9; ++arity)
         {
-            for (std::size_t site = 0; site != n; ++site)
+            for (std::size_t root = 0; root != n; ++root)
             {
-                HPX_TEST_EQ(classify_site(site, n, arity),
-                    expected_classification(site, n, arity));
+                check_tree(n, arity, root);
             }
         }
     }
 }
 
-void test_matches_recursive_fill()
+void test_centered_tree_example()
 {
-    // Verify that the top-level helpers produce the same partition as the top
-    // frame of recursively_fill_communicators.
-    for (std::size_t n = 1; n <= 32; ++n)
-    {
-        for (std::size_t arity = 2; arity <= 8; ++arity)
-        {
-            std::size_t const count = get_top_level_group_count(n, arity);
-            HPX_TEST_EQ(count, expected_group_count(n, arity));
+    // 16 sites, arity 2, leaf size 4 (root in brackets):
+    //   ([0] 4 11)
+    //   (2 [4] 6) (9 [11] 13)
+    //   (1 [2] 3) (5 [6] 7) (8 [9] 10) (12 [13] 14 15)
+    std::vector<std::vector<std::size_t>> const expected_members = {{0, 4, 11},
+        {2, 4, 6}, {1, 2, 3}, {5, 6, 7}, {9, 11, 13}, {8, 9, 10},
+        {12, 13, 14, 15}};
+    std::vector<std::size_t> const expected_roots = {0, 4, 2, 6, 11, 9, 13};
+    std::vector<std::vector<std::size_t>> const expected_blocks = {{1, 7, 8},
+        {3, 1, 3}, {1, 1, 1}, {1, 1, 1}, {3, 1, 4}, {1, 1, 1}, {1, 1, 1, 1}};
 
-            for (std::size_t group = 0; group != count; ++group)
-            {
-                HPX_TEST_EQ(get_top_level_group_left(group, n, arity),
-                    expected_group_left(group, n, arity));
-                HPX_TEST_EQ(get_top_level_group_size(group, n, arity),
-                    expected_group_size(group, n, arity));
-            }
+    auto const tree = make_centered_tree(16, 2, 4);
+    HPX_TEST_EQ(tree.size(), expected_members.size());
+    for (std::size_t c = 0; c != tree.size() && c != expected_members.size();
+        ++c)
+    {
+        HPX_TEST(tree[c].members == expected_members[c]);
+        HPX_TEST_EQ(tree[c].root, expected_roots[c]);
+        HPX_TEST(tree[c].block_sizes == expected_blocks[c]);
+    }
+
+    // The same sites with root 5: the 5 sites left of the root and the 10
+    // sites right of it get one block each, no block spans the root.
+    //   (2 [5] 10)
+    //   (0 [2] 3) (7 [10] 13)
+    //   ([0] 1) ([3] 4) (6 [7] 8 9) (11 [13] 14)
+    //   ([11] 12) ([14] 15)
+    std::vector<std::vector<std::size_t>> const expected_members_5 = {
+        {2, 5, 10}, {0, 2, 3}, {0, 1}, {3, 4}, {7, 10, 13}, {6, 7, 8, 9},
+        {11, 13, 14}, {11, 12}, {14, 15}};
+    std::vector<std::size_t> const expected_roots_5 = {
+        5, 2, 0, 3, 10, 7, 13, 11, 14};
+    std::vector<std::size_t> const expected_root_ranks_5 = {
+        1, 1, 0, 0, 1, 1, 1, 0, 0};
+    std::vector<std::vector<std::size_t>> const expected_blocks_5 = {{5, 1, 10},
+        {2, 1, 2}, {1, 1}, {1, 1}, {4, 1, 5}, {1, 1, 1, 1}, {2, 1, 2}, {1, 1},
+        {1, 1}};
+
+    auto const tree_5 = make_centered_tree(16, 2, 4, 5);
+    HPX_TEST_EQ(tree_5.size(), expected_members_5.size());
+    for (std::size_t c = 0;
+        c != tree_5.size() && c != expected_members_5.size(); ++c)
+    {
+        HPX_TEST(tree_5[c].members == expected_members_5[c]);
+        HPX_TEST_EQ(tree_5[c].root, expected_roots_5[c]);
+        HPX_TEST_EQ(tree_5[c].root_rank, expected_root_ranks_5[c]);
+        HPX_TEST(tree_5[c].block_sizes == expected_blocks_5[c]);
+    }
+
+    // with the last site as the root, all blocks are left of it
+    auto const tree_15 = make_centered_tree(16, 2, 4, 15);
+    HPX_TEST(tree_15.front().members == (std::vector<std::size_t>{3, 10, 15}));
+    HPX_TEST_EQ(tree_15.front().root_rank, std::size_t(2));
+    HPX_TEST(
+        tree_15.front().block_sizes == (std::vector<std::size_t>{7, 8, 1}));
+
+    // small trees are a single communicator rooted at the root site
+    for (std::size_t n = 1; n <= 4; ++n)
+    {
+        for (std::size_t root = 0; root != n; ++root)
+        {
+            auto const flat = make_centered_tree(n, 2, 4, root);
+            HPX_TEST_EQ(flat.size(), std::size_t(1));
+            HPX_TEST_EQ(flat.front().members.size(), n);
+            HPX_TEST_EQ(flat.front().root, root);
+            HPX_TEST_EQ(flat.front().root_rank, root);
         }
     }
+
+    // the leaf size grows with the arity
+    HPX_TEST_EQ(make_centered_tree(9, 8).size(), std::size_t(1));
+    HPX_TEST_LT(std::size_t(1), make_centered_tree(10, 8).size());
 }
 
-void test_is_top_level_rep_basic()
+// Create the hierarchical communicator with the given root on all sites and
+// check that every site holds the sub-communicators of the tree it belongs
+// to: the one in which it is a child (if any), then the one it roots (if any).
+void check_communicator_roots(
+    std::size_t const n, std::size_t const arity, std::size_t const root)
 {
-    // N=8, arity=2 -> groups [0,3] and [4,7]. Reps are 0 and 4.
-    HPX_TEST(is_top_level_rep(0, 8, 2, 0));
-    HPX_TEST(!is_top_level_rep(1, 8, 2, 0));
-    HPX_TEST(!is_top_level_rep(3, 8, 2, 0));
-    HPX_TEST(is_top_level_rep(4, 8, 2, 0));
-    HPX_TEST(!is_top_level_rep(5, 8, 2, 0));
-    HPX_TEST(!is_top_level_rep(7, 8, 2, 0));
+    // hpx_main runs on every locality, each simulating all sites, so the
+    // names must differ between the localities.
+    std::string const basename = "/test/hierarchical_helpers/roots/" +
+        std::to_string(hpx::get_locality_id()) + "/" + std::to_string(n) + "/" +
+        std::to_string(arity) + "/";
+    auto const tree = make_centered_tree(n, arity, 4, root);
 
-    // N=11, arity=4 -> groups [0,2], [3,5], [6,8], [9,10]. Reps: 0,3,6,9.
-    HPX_TEST(is_top_level_rep(0, 11, 4, 0));
-    HPX_TEST(!is_top_level_rep(1, 11, 4, 0));
-    HPX_TEST(!is_top_level_rep(2, 11, 4, 0));
-    HPX_TEST(is_top_level_rep(3, 11, 4, 0));
-    HPX_TEST(is_top_level_rep(6, 11, 4, 0));
-    HPX_TEST(is_top_level_rep(9, 11, 4, 0));
-    HPX_TEST(!is_top_level_rep(10, 11, 4, 0));
-}
-
-void test_is_top_level_rep_exhaustive()
-{
-    // For various N and arity, exactly the leftmost site in each group
-    // should be a rep, and no other site.
-    for (std::size_t n = 1; n <= 32; ++n)
-    {
-        for (std::size_t arity = 2; arity <= 8; ++arity)
-        {
-            for (std::size_t site = 0; site != n; ++site)
-            {
-                std::ptrdiff_t const group =
-                    expected_classification(site, n, arity);
-                bool const expected = group != -1 &&
-                    site ==
-                        expected_group_left(
-                            static_cast<std::size_t>(group), n, arity);
-
-                HPX_TEST_EQ(is_top_level_rep(site, n, arity, 0), expected);
-            }
-        }
-    }
-}
-
-// Number of communicators every site holds in a tree with the given root.
-std::vector<std::size_t> chain_sizes(
-    std::size_t n, std::size_t arity, std::size_t root)
-{
-    std::string const basename = "/test/hierarchical_helpers/chain/" +
-        std::to_string(n) + "/" + std::to_string(arity) + "/" +
-        std::to_string(root) + "/";
-
-    std::vector<hpx::future<std::size_t>> sizes;
+    std::vector<hpx::future<void>> sites;
     for (std::size_t site = 0; site != n; ++site)
     {
-        sizes.push_back(hpx::async([=]() {
+        sites.push_back(hpx::async([&, site]() {
             auto const comms =
                 hpx::collectives::create_hierarchical_communicator(
                     basename.c_str(), hpx::collectives::num_sites_arg(n),
@@ -336,111 +314,110 @@ std::vector<std::size_t> chain_sizes(
                     hpx::collectives::generation_arg(),
                     hpx::collectives::root_site_arg(root),
                     hpx::collectives::flat_fallback_threshold_arg(0));
+
             HPX_TEST_EQ(comms.get_root_site(), root);
-            // the root is the top-level representative of its group
+            HPX_TEST_EQ(comms.is_flat(), tree.size() == 1);
+            HPX_TEST(comms.top_level_block_sizes() == tree.front().block_sizes);
+
+            std::vector<std::size_t> local_ranks;
+            std::ptrdiff_t top_level_group = -1;
+            for (std::size_t c = 0; c != tree.size(); ++c)
+            {
+                auto const& members = tree[c].members;
+                auto const it = std::find(members.begin(), members.end(), site);
+                if (it != members.end())
+                {
+                    std::size_t const local = static_cast<std::size_t>(
+                        std::distance(members.begin(), it));
+                    if (c == 0)
+                    {
+                        top_level_group = static_cast<std::ptrdiff_t>(local);
+                    }
+                    if (local_ranks.size() < comms.size())
+                    {
+                        HPX_TEST(comms.block_sizes(local_ranks.size()) ==
+                            tree[c].block_sizes);
+                    }
+                    local_ranks.push_back(local);
+                }
+            }
+
+            HPX_TEST_EQ(comms.top_level_group(), top_level_group);
+            HPX_TEST_EQ(comms.size(), local_ranks.size());
+            for (std::size_t i = 0;
+                i != local_ranks.size() && i != comms.size(); ++i)
+            {
+                HPX_TEST_EQ(comms.site(i), local_ranks[i]);
+            }
+
+            // The root only belongs to the top-level communicator, where it is
+            // the root of the communicator.
             if (site == root)
             {
-                HPX_TEST_EQ(comms.site(0),
-                    static_cast<std::size_t>(
-                        expected_classification(root, n, arity)));
+                HPX_TEST_EQ(comms.size(), std::size_t(1));
+                HPX_TEST_EQ(comms.site(0), tree.front().root_rank);
+                HPX_TEST(comms.get(0).is_root());
             }
-            return comms.size();
         }));
     }
-
-    std::vector<std::size_t> result;
-    for (auto& f : sizes)
+    hpx::wait_all(sites);
+    for (auto& f : sites)
     {
-        result.push_back(f.get());
+        HPX_TEST(!f.has_exception());
     }
-    return result;
 }
 
-// A site holds one communicator for every range of the tree it leads (plus its
-// leaf). Every range has one leader, so the total is the same for any root. The
-// root leads all ranges containing it; the other sites can only lose ranges
-// compared to the tree rooted at 0. A composite collective whose result
-// doesn't depend on the root (barrier, all_gather, ...) would only hang with a
-// wrong root, so check the structure directly.
-void test_root_leads_its_ranges()
+void test_communicator_roots()
 {
-    for (std::size_t n = 3; n <= 12; ++n)
+    for (std::size_t n = 1; n <= 12; ++n)
     {
         for (std::size_t arity = 2; arity <= 4; ++arity)
         {
-            if (arity >= n)
+            for (std::size_t root = 0; root != n; ++root)
             {
-                continue;
-            }
-            auto const base = chain_sizes(n, arity, 0);
-            std::size_t const base_total =
-                std::accumulate(base.begin(), base.end(), std::size_t(0));
-
-            for (std::size_t root = 1; root != n; ++root)
-            {
-                auto const sizes = chain_sizes(n, arity, root);
-                HPX_TEST_EQ(
-                    std::accumulate(sizes.begin(), sizes.end(), std::size_t(0)),
-                    base_total);
-                for (std::size_t site = 0; site != n; ++site)
-                {
-                    if (site == root)
-                    {
-                        HPX_TEST_LTE(base[site], sizes[site]);
-                    }
-                    else
-                    {
-                        HPX_TEST_LTE(sizes[site], base[site]);
-                    }
-                }
+                check_communicator_roots(n, arity, root);
             }
         }
+    }
+    for (std::size_t const root : {0, 1, 8, 15, 16})
+    {
+        check_communicator_roots(17, 2, root);
     }
 }
 
-void test_is_top_level_rep_with_root()
+void test_uniform_rows_explicit_slices()
 {
-    // The representative of a group is the root if the group contains it and
-    // its leftmost site otherwise; every group has exactly one.
-    for (std::size_t n = 1; n <= 32; ++n)
+    uniform_rows<int> rows(std::vector<int>{0, 1, 2, 3, 4, 5, 6}, 7);
+    rows.set_slices({3, 1, 3});
+    HPX_TEST(rows.is_valid());
+
+    std::vector<int> const values{0, 1, 2, 3, 4, 5, 6};
+    std::vector<std::size_t> const slices{3, 1, 3};
+    std::size_t first = 0;
+    for (std::size_t slice = 0; slice != slices.size(); ++slice)
     {
-        for (std::size_t arity = 2; arity <= 8; ++arity)
+        uniform_rows<int> copy(std::vector<int>(values), 7);
+        copy.set_slices(slices);
+        auto part = HPX_MOVE(copy).extract(slice, slices.size());
+        HPX_TEST_EQ(part.num_rows(), slices[slice]);
+        for (std::size_t i = 0; i != slices[slice]; ++i)
         {
-            for (std::size_t root = 0; root != n; ++root)
-            {
-                std::size_t const groups = get_top_level_group_count(n, arity);
-                std::vector<std::size_t> reps(groups, 0);
-
-                for (std::size_t site = 0; site != n; ++site)
-                {
-                    std::ptrdiff_t const group =
-                        expected_classification(site, n, arity);
-                    HPX_TEST_NEQ(group, std::ptrdiff_t(-1));
-
-                    bool const root_in_group =
-                        expected_classification(root, n, arity) == group;
-                    bool const expected = site ==
-                        (root_in_group ?
-                                root :
-                                expected_group_left(
-                                    static_cast<std::size_t>(group), n, arity));
-
-                    bool const is_rep = is_top_level_rep(site, n, arity, root);
-                    HPX_TEST_EQ(is_rep, expected);
-                    if (is_rep)
-                    {
-                        ++reps[static_cast<std::size_t>(group)];
-                    }
-                }
-
-                for (std::size_t group = 0; group != groups; ++group)
-                {
-                    HPX_TEST_EQ(reps[group], std::size_t(1));
-                }
-                HPX_TEST(is_top_level_rep(root, n, arity, root));
-            }
+            HPX_TEST_EQ(part.data()[i], values[first + i]);
         }
+        first += slices[slice];
     }
+
+    // the slice table survives serialization
+    std::vector<char> buffer;
+    hpx::serialization::output_archive output(buffer);
+    output << rows;
+
+    uniform_rows<int> restored;
+    hpx::serialization::input_archive input(buffer);
+    input >> restored;
+    auto last = HPX_MOVE(restored).extract(2, 3);
+    HPX_TEST_EQ(last.num_rows(), std::size_t(3));
+    HPX_TEST_EQ(last.data()[0], 4);
 }
 
 void test_is_uniform_rows_trait()
@@ -715,7 +692,7 @@ void test_uniform_rows_validation()
     auto deserialize_rows = [](std::vector<int> data, std::size_t num_rows) {
         std::vector<char> buffer;
         hpx::serialization::output_archive output(buffer);
-        output << data << num_rows;
+        output << data << num_rows << std::vector<std::size_t>{};
 
         uniform_rows<int> rows;
         hpx::serialization::input_archive input(buffer);
@@ -861,20 +838,10 @@ void test_ragged_rows_serialization()
 
 int hpx_main()
 {
-    test_balanced_arity2();
-    test_balanced_arity4();
-    test_unbalanced_n11_arity4();
-    test_unbalanced_n7_arity3();
-    test_arity_exceeds_n();
-    test_single_site();
-    test_coverage_property();
-    test_classify_site_basic();
-    test_classify_site_exhaustive();
-    test_matches_recursive_fill();
-    test_is_top_level_rep_basic();
-    test_is_top_level_rep_exhaustive();
-    test_is_top_level_rep_with_root();
-    test_root_leads_its_ranges();
+    test_centered_tree_properties();
+    test_centered_tree_example();
+    test_communicator_roots();
+    test_uniform_rows_explicit_slices();
     test_is_ragged_rows_trait();
     test_is_uniform_rows_trait();
     test_ragged_rows_extract_columns();

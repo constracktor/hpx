@@ -22,6 +22,7 @@ set(collectives_headers
     hpx/collectives/broadcast_direct.hpp
     hpx/collectives/channel_communicator.hpp
     hpx/collectives/create_communicator.hpp
+    hpx/collectives/detail/centered_tree.hpp
     hpx/collectives/detail/channel_communicator.hpp
     hpx/collectives/detail/communicator.hpp
     hpx/collectives/detail/flattened_data.hpp
@@ -88,6 +89,7 @@ add_hpx_module(
   MACRO_HEADERS ${collectives_macros_headers}
   EXCLUDE_FROM_GLOBAL_HEADER "hpx/collectives.hpp"
   ADD_TO_GLOBAL_HEADER
+    "hpx/collectives/detail/centered_tree.hpp"
     "hpx/collectives/detail/flattened_data.hpp"
     "hpx/collectives/detail/hierarchical_all_to_all_helpers.hpp"
     "hpx/collectives/detail/hierarchical_helpers.hpp"

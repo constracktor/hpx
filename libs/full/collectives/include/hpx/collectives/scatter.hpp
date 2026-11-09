@@ -717,25 +717,45 @@ namespace hpx::collectives {
                 hierarchical_run_params(generation, num_generations);
 
             auto [current_communicator, current_site] = communicators[0];
-            if (communicators.size() == 1)
+            if (communicators.is_flat())
             {
                 return scatter_leaf_from<T>(
                     current_communicator, current_site, run_gen, run_step);
+            }
+
+            // Within the tree every sub-communicator uses the uniform-row
+            // protocol: a member may represent a whole block of sites.
+            auto unwrap = [](uniform_rows<T>&& result) {
+                return HPX_MOVE(result).unwrap_value();
+            };
+
+            if (communicators.size() == 1)
+            {
+                return hpx::make_future<T>(
+                    scatter_rows_from<T>(
+                        current_communicator, current_site, run_gen, run_step),
+                    HPX_MOVE(unwrap));
             }
 
             uniform_rows<T> data = scatter_rows_from<T>(
                 current_communicator, current_site, run_gen, run_step)
                                        .get();
 
+            // This site roots the remaining sub-communicators.
             for (std::size_t i = 1; i < communicators.size() - 1; ++i)
             {
+                data.set_slices(communicators.block_sizes(i));
                 data = scatter_rows_to(communicators.get(i), HPX_MOVE(data),
                     communicators.site(i), run_gen, run_step)
                            .get();
             }
 
-            return scatter_leaf_to(communicators.back(), HPX_MOVE(data),
-                communicators.last_site(), run_gen, run_step);
+            data.set_slices(
+                communicators.block_sizes(communicators.size() - 1));
+            return hpx::make_future<T>(
+                scatter_rows_to(communicators.back(), HPX_MOVE(data),
+                    communicators.last_site(), run_gen, run_step),
+                HPX_MOVE(unwrap));
         }
     }    // namespace detail
 
@@ -998,23 +1018,33 @@ namespace hpx::collectives {
                 hierarchical_run_params(generation, num_generations);
 
             auto [current_communicator, current_site] = communicators[0];
-            if (communicators.size() == 1)
+            if (communicators.is_flat())
             {
                 return scatter_leaf_to(current_communicator,
                     uniform_rows<T>(HPX_MOVE(local_result)), current_site,
                     run_gen, run_step);
             }
 
+            // The root site roots every sub-communicator it belongs to. Every
+            // member receives the rows of the block of sites it represents
+            // (see scatter_from above).
             uniform_rows<T> data(HPX_MOVE(local_result));
             for (std::size_t i = 0; i < communicators.size() - 1; ++i)
             {
+                data.set_slices(communicators.block_sizes(i));
                 data = scatter_rows_to(communicators.get(i), HPX_MOVE(data),
                     communicators.site(i), run_gen, run_step)
                            .get();
             }
 
-            return scatter_leaf_to(communicators.back(), HPX_MOVE(data),
-                communicators.last_site(), run_gen, run_step);
+            data.set_slices(
+                communicators.block_sizes(communicators.size() - 1));
+            return hpx::make_future<T>(
+                scatter_rows_to(communicators.back(), HPX_MOVE(data),
+                    communicators.last_site(), run_gen, run_step),
+                [](uniform_rows<T>&& result) {
+                    return HPX_MOVE(result).unwrap_value();
+                });
         }
     }    // namespace detail
 

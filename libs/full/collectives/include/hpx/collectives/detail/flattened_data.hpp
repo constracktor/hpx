@@ -171,8 +171,30 @@ namespace hpx::collectives::detail {
 
         [[nodiscard]] bool is_valid() const noexcept
         {
+            if (!slice_rows_.empty())
+            {
+                std::size_t total = 0;
+                for (std::size_t const rows : slice_rows_)
+                {
+                    total += rows;
+                }
+                if (total != num_rows_)
+                {
+                    return false;
+                }
+            }
             return num_rows_ == 0 ? data_.empty() :
                                     data_.size() % num_rows_ == 0;
+        }
+
+        // Make extract() hand slice i exactly slice_rows[i] consecutive rows
+        // instead of splitting the rows evenly. The hierarchical scatter
+        // uses this to give every member of a sub-communicator the rows of
+        // the block of sites it represents.
+        void set_slices(std::vector<std::size_t> slice_rows)
+        {
+            slice_rows_ = HPX_MOVE(slice_rows);
+            HPX_ASSERT(is_valid());
         }
 
         void validate(char const* const operation) const
@@ -200,12 +222,25 @@ namespace hpx::collectives::detail {
             HPX_ASSERT(is_valid());
             HPX_ASSERT(num_slices != 0 && slice < num_slices);
 
-            std::size_t const division_steps = num_rows_ / num_slices;
-            std::size_t const remainder = num_rows_ % num_slices;
-            std::size_t const first_row =
-                slice * division_steps + (std::min) (slice, remainder);
-            std::size_t const row_count =
-                division_steps + (slice < remainder ? 1 : 0);
+            std::size_t first_row = 0;
+            std::size_t row_count = 0;
+            if (!slice_rows_.empty())
+            {
+                HPX_ASSERT(slice_rows_.size() == num_slices);
+                for (std::size_t i = 0; i != slice; ++i)
+                {
+                    first_row += slice_rows_[i];
+                }
+                row_count = slice_rows_[slice];
+            }
+            else
+            {
+                std::size_t const division_steps = num_rows_ / num_slices;
+                std::size_t const remainder = num_rows_ % num_slices;
+                first_row =
+                    slice * division_steps + (std::min) (slice, remainder);
+                row_count = division_steps + (slice < remainder ? 1 : 0);
+            }
             std::size_t const width = row_width();
             std::size_t const first =
                 checked_data_size_product(first_row, width);
@@ -260,11 +295,13 @@ namespace hpx::collectives::detail {
 
         std::vector<T> data_;
         std::size_t num_rows_ = 0;
+        // optional per-slice row counts used by extract()
+        std::vector<std::size_t> slice_rows_;
 
         template <typename Archive>
         void serialize(Archive& ar, unsigned int const)
         {
-            ar & data_ & num_rows_;
+            ar & data_ & num_rows_ & slice_rows_;
         }
     };
 

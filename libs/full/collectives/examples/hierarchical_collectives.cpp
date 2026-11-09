@@ -10,7 +10,7 @@
 //
 // Run it on more than one locality, for instance:
 //
-//     hpxrun.py -l 4 -t 1 bin/hierarchical_collectives -- --arity=2
+//     hpxrun.py -l 8 -t 1 bin/hierarchical_collectives -- --arity=2
 
 #include <hpx/config.hpp>
 
@@ -55,8 +55,8 @@ int hpx_main(hpx::program_options::variables_map& vm)
     // Below the flat fallback threshold (16 sites by default) the
     // communicator collapses to a single flat communicator. This example
     // passes 0 to disable that fallback, so that it builds a tree even on a
-    // few localities, as long as the arity is smaller than the number of
-    // localities.
+    // few localities, as long as there are more localities than fit into
+    // one leaf of the tree (max(4, arity + 1)).
     auto const comm = create_hierarchical_communicator(hierarchical_basename,
         num_sites_arg(num_localities), this_site_arg(this_locality),
         arity_arg(static_cast<std::size_t>(arity)), generation_arg(),

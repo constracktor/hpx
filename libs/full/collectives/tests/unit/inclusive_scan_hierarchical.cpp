@@ -127,9 +127,15 @@ void test_non_power_of_arity()
         test_local_numeric(num_sites, 4, 0);
     }
 
-    for (std::uint32_t num_sites : {5u, 7u, 9u, 10u, 11u, 15u})
+    for (std::uint32_t num_sites : {5u, 7u, 9u, 10u, 11u, 15u, 17u})
     {
         test_local_numeric(num_sites, 3, 0);
+    }
+
+    for (std::uint32_t num_sites : {17u, 33u})
+    {
+        test_local_numeric(num_sites, 2, 0);
+        test_local_numeric(num_sites, 8, 0);
     }
 }
 
@@ -164,8 +170,7 @@ void test_flat_fallback_vs_tree()
                 flat_fallback_threshold_arg(0));
 
             HPX_TEST_EQ(flat.size(), static_cast<std::size_t>(1));
-            HPX_TEST_LT(static_cast<std::size_t>(tree.get_arity()),
-                static_cast<std::size_t>(num_sites));
+            HPX_TEST(!tree.is_flat());
 
             for (std::uint32_t i = 0; i != ITERATIONS; ++i)
             {
@@ -293,20 +298,20 @@ void test_invalid_communicator_rejected()
         generation_arg(1), root_site_arg(), hpx::error::invalid_status);
 }
 
-void test_string_ordering()
+void test_string_ordering(std::uint32_t const num_sites, int const arity)
 {
-    constexpr std::uint32_t num_sites = 7;
-
     std::vector<hpx::future<void>> sites;
     sites.reserve(num_sites);
 
     for (std::uint32_t site = 0; site != num_sites; ++site)
     {
         sites.push_back(hpx::async([=]() {
+            std::string const basename =
+                "/test/inclusive_scan_hierarchical/strings/" +
+                std::to_string(num_sites) + "/" + std::to_string(arity) + "/";
             auto const comms = create_hierarchical_communicator(
-                "/test/inclusive_scan_hierarchical/strings/",
-                num_sites_arg(num_sites), this_site_arg(site), arity_arg(3),
-                generation_arg(), root_site_arg(),
+                basename.c_str(), num_sites_arg(num_sites), this_site_arg(site),
+                arity_arg(arity), generation_arg(), root_site_arg(),
                 flat_fallback_threshold_arg(0));
 
             auto concat = [](std::string lhs, std::string const& rhs) {
@@ -387,7 +392,9 @@ int hpx_main()
         test_flat_fallback_vs_tree();
         test_generation_rejections();
         test_invalid_communicator_rejected();
-        test_string_ordering();
+        test_string_ordering(7, 3);
+        test_string_ordering(17, 2);
+        test_string_ordering(33, 8);
         test_bool_scan();
     }
 

@@ -15,6 +15,7 @@
 
 #include "hierarchical_roots.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -52,12 +53,10 @@ void test_multiple_use_with_generation(int arity = 2, std::uint32_t root = 0)
         this_site_arg(this_locality), arity_arg(arity), generation_arg(),
         root_site_arg(root), flat_fallback_threshold_arg(0));
 
-    // A multi-level tree only guarantees multiple communicators on the
-    // representative path. The root is always on that path.
-    if (this_locality == root &&
-        num_localities > static_cast<std::uint32_t>(arity))
+    // More sites than fit into one leaf (max(4, arity + 1)) give a real tree.
+    if (num_localities > (std::max) (4u, static_cast<std::uint32_t>(arity + 1)))
     {
-        HPX_TEST_LTE(static_cast<std::size_t>(2), barrier_clients.size());
+        HPX_TEST(!barrier_clients.is_flat());
     }
 
     hpx::chrono::high_resolution_timer const t;
@@ -91,13 +90,12 @@ void test_local_use(std::uint32_t num_sites, int arity, std::uint32_t root = 0)
                 this_site_arg(site), arity_arg(arity), generation_arg(),
                 root_site_arg(root), flat_fallback_threshold_arg(0));
 
-            // Only the representative path is guaranteed to span multiple
-            // communicators. The root is always the representative at each
-            // level.
-            if (site == root && num_sites > static_cast<std::uint32_t>(arity))
+            // More sites than fit into one leaf (max(4, arity + 1)) give a
+            // real tree.
+            if (num_sites >
+                (std::max) (4u, static_cast<std::uint32_t>(arity + 1)))
             {
-                HPX_TEST_LTE(
-                    static_cast<std::size_t>(2), barrier_clients.size());
+                HPX_TEST(!barrier_clients.is_flat());
             }
 
             hpx::chrono::high_resolution_timer const t;
@@ -132,6 +130,14 @@ void test_non_power_of_arity()
     for (std::uint32_t num_sites : {5u, 6u, 7u, 9u, 10u, 11u, 13u, 15u})
     {
         test_local_use(num_sites, 4);
+    }
+
+    // deeper trees, an odd arity, and a wide tree with single-site blocks
+    for (std::uint32_t num_sites : {17u, 33u})
+    {
+        test_local_use(num_sites, 2);
+        test_local_use(num_sites, 3);
+        test_local_use(num_sites, 8);
     }
 }
 

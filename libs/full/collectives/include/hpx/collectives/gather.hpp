@@ -622,6 +622,9 @@ namespace hpx::collectives {
 
             using value_type = std::decay_t<T>;
             uniform_rows<value_type> result(HPX_FORWARD(T, local_result));
+            // The root site roots every sub-communicator it belongs to.
+            // Members are in ascending site order, so the rows arrive in site
+            // order.
             for (std::size_t i = communicators.size() - 1; i != 0; --i)
             {
                 result = gather_here_impl<uniform_rows<value_type>>(
@@ -823,6 +826,7 @@ namespace hpx::collectives {
 
             using value_type = std::decay_t<T>;
             uniform_rows<value_type> data(HPX_FORWARD(T, local_result));
+            // This site roots sub-communicators 1.., and is a child in 0.
             for (std::size_t i = communicators.size() - 1; i != 0; --i)
             {
                 data = gather_here_impl<uniform_rows<value_type>>(

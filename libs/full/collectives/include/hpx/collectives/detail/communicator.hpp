@@ -554,7 +554,7 @@ namespace hpx::collectives::detail {
         char const* current_operation_ = nullptr;
         // Owned copy for diagnostics only. Hierarchical tree construction
         // derives communicator basenames from stack std::strings that are
-        // destroyed when recursively_fill_communicators returns, while this
+        // destroyed when create_hierarchical_communicator returns, while this
         // component outlives that frame. A borrowed pointer would therefore
         // dangle on later exception paths. The constructor takes the owned
         // name by value and moves it into place.

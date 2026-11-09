@@ -38,8 +38,8 @@ namespace hpx::collectives::detail {
     //
     // Returns one logical row per subtree site, ordered by subtree site rank.
     //
-    // For the flat fallback case (comms.size() <= 1), returns the site's
-    // own data wrapped in a single row.
+    // If this site roots no subtree communicator (comms.size() == 1),
+    // returns the site's own data wrapped in a single row.
     ///////////////////////////////////////////////////////////////////////////
     HPX_CXX_EXPORT template <typename T>
     uniform_rows<T> subtree_gather_at_top_rep(
@@ -50,12 +50,11 @@ namespace hpx::collectives::detail {
 
         uniform_rows<T> result(HPX_MOVE(local_result), 1);
 
-        // Walk bottom-up from leaf (size()-1) to level 1, skipping level 0
-        // (the inter-group communicator). At every subtree level this site
-        // is the root of the communicator, so we call gather_here. For a
-        // single-level subtree (size() == 1, e.g. the arity >= num_sites
-        // case) the loop body simply does not execute and the site's own
-        // data is returned.
+        // Walk bottom-up from the deepest level to level 1, skipping level 0
+        // (the inter-group communicator). This site roots every subtree
+        // communicator it belongs to, so we call gather_here. If this site
+        // roots no subtree communicator (size() == 1) the loop body does not
+        // execute and the site's own data is returned.
         for (std::size_t i = comms.size() - 1; i != 0; --i)
         {
             result = gather_here_impl<uniform_rows<T>>(comms.get(i),
@@ -87,8 +86,8 @@ namespace hpx::collectives::detail {
 
         uniform_rows<T> data(HPX_MOVE(local_result), 1);
 
-        // Walk bottom-up from leaf to level 1, calling gather_here
-        // (each intermediate rep gathers from its children).
+        // Walk bottom-up to level 1, calling gather_here on the
+        // communicators this site roots.
         for (std::size_t i = comms.size() - 1; i != 0; --i)
         {
             data =
@@ -114,7 +113,8 @@ namespace hpx::collectives::detail {
     //
     // Returns this site's row after scattering down the tree.
     //
-    // For the flat fallback case (comms.size() <= 1), returns the input row.
+    // If this site roots no subtree communicator (comms.size() == 1),
+    // returns the input row.
     ///////////////////////////////////////////////////////////////////////////
     HPX_CXX_EXPORT template <typename T>
     hpx::future<std::vector<T>> subtree_scatter_at_top_rep(
@@ -123,25 +123,26 @@ namespace hpx::collectives::detail {
     {
         HPX_ASSERT(comms.size() != 0);
 
-        // Flat fallback or single-level subtree: the single row belongs to
-        // this site.
+        // No subtree below this site: the single row belongs to it.
         if (comms.size() == 1)
         {
             return hpx::make_ready_future(HPX_MOVE(data).unwrap_row());
         }
 
         // Walk top-down from level 1 through size()-2, partitioning and
-        // scattering at each level. At each level, this site is the root of
-        // the communicator.
+        // scattering at each level. This site roots each of these
+        // communicators; every member gets the rows of its block.
         for (std::size_t i = 1; i < comms.size() - 1; ++i)
         {
+            data.set_slices(comms.block_sizes(i));
             data = scatter_rows_to(comms.get(i), HPX_MOVE(data), comms.site(i),
                 generation, generation_mode::single_step)
                        .get();
         }
 
-        // At the leaf level (size()-1), scatter asynchronously and return
+        // At the last level (size()-1), scatter asynchronously and return
         // the future directly.
+        data.set_slices(comms.block_sizes(comms.size() - 1));
         return hpx::make_future<std::vector<T>>(
             scatter_rows_to(comms.back(), HPX_MOVE(data), comms.last_site(),
                 generation, generation_mode::single_step),
@@ -168,8 +169,8 @@ namespace hpx::collectives::detail {
 
         auto [current_communicator, current_site] = comms[0];
 
-        // A direct leaf of the top representative receives exactly its own row
-        // as a future, returned directly.
+        // A site that roots no communicator receives exactly its own row as
+        // a future, returned directly.
         if (comms.size() == 1)
         {
             return hpx::make_future<std::vector<T>>(
@@ -180,7 +181,7 @@ namespace hpx::collectives::detail {
                 });
         }
 
-        // An intermediate representative receives rows for its subtree to
+        // A site rooting a communicator receives the rows of its subtree to
         // scatter further down.
         uniform_rows<T> data = scatter_rows_from<T>(current_communicator,
             current_site, generation, generation_mode::single_step)
@@ -189,13 +190,15 @@ namespace hpx::collectives::detail {
         // Walk down through intermediate levels.
         for (std::size_t i = 1; i < comms.size() - 1; ++i)
         {
+            data.set_slices(comms.block_sizes(i));
             data = scatter_rows_to(comms.get(i), HPX_MOVE(data), comms.site(i),
                 generation, generation_mode::single_step)
                        .get();
         }
 
-        // At the leaf level, scatter asynchronously and return the future
+        // At the last level, scatter asynchronously and return the future
         // directly.
+        data.set_slices(comms.block_sizes(comms.size() - 1));
         return hpx::make_future<std::vector<T>>(
             scatter_rows_to(comms.back(), HPX_MOVE(data), comms.last_site(),
                 generation, generation_mode::single_step),

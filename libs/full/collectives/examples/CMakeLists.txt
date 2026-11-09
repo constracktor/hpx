@@ -30,7 +30,7 @@ set(distributed_pi_FLAGS COMPILE_FLAGS -DHPX_HAVE_RUN_MAIN_EVERYWHERE)
 set(channel_pingpong_PARAMETERS LOCALITIES 2 THREADS_PER_LOCALITY 2)
 set(channel_pingpong_FLAGS COMPILE_FLAGS -DHPX_HAVE_RUN_MAIN_EVERYWHERE)
 
-set(hierarchical_collectives_PARAMETERS LOCALITIES 4 THREADS_PER_LOCALITY 1)
+set(hierarchical_collectives_PARAMETERS LOCALITIES 8 THREADS_PER_LOCALITY 1)
 
 foreach(example_program ${example_programs})
 
